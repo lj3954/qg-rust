@@ -1,8 +1,8 @@
-mod libosinfo;
+mod distros;
+use distros::{Distro, collect_distros};
 
-use libosinfo::{OS, gather_osinfo};
 
 fn main() {
-    let distros = gather_osinfo().expect("Failed to gather OSinfo");
+    let distros = collect_distros();
 }
 
