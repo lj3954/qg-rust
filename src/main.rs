@@ -1,5 +1,7 @@
-mod distros;
-use distros::{Distro, collect_distros};
+mod utils;
+mod basic_distros;
+
+use utils::{Distro, collect_distros};
 
 
 fn main() {
