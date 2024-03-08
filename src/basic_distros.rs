@@ -1,4 +1,4 @@
-use crate::utils::{Distro, cut_space, collect_page, format_URL};
+use crate::utils::{Distro, cut_space, collect_page, FormatUrl};
 
 pub trait DistroVec {
     fn add_arch(&mut self, url_format: &str, name: &str, releases: Vec<&str>, editions: Vec<&str>, arch: &str,  checksum: Option<fn(release: &str, edition: &str, arch: &str) -> Option<String>>);
@@ -35,8 +35,8 @@ impl DistroVec for Vec<Distro> {
 pub fn basic_distros() -> Vec<Distro> {
     let mut distros: Vec<Distro> = Vec::new();
     // URL Format : Pretty Name : Releases : (Editions) : Checksum function : (Arch)
-    distros.add_edition("https://zrn.co/{RELEASE}{EDITION}", "Zorin OS", vec!["16", "17"], vec!["core64", "lite64", "education64", "edulite64"], None);
-    distros.add("https://files.kde.org/neon/images/{RELEASE}/current/neon-{RELEASE}-current.iso", "KDE Neon", vec!["user", "testing", "unstable", "developer"], Some(kdeneon_hash));
+    distros.add_edition("https://zrn.co/{RELEASE}{EDITION}", "zorin", vec!["16", "17"], vec!["core64", "lite64", "education64", "edulite64"], None);
+    distros.add("https://files.kde.org/neon/images/{RELEASE}/current/neon-{RELEASE}-current.iso", "kdeneon", vec!["user", "testing", "unstable", "developer"], Some(kdeneon_hash));
 
 
     distros
@@ -48,9 +48,6 @@ fn kdeneon_hash(release: &str, edition: &str, arch: &str) -> Option<String> {
             let checksum = cut_space(&body, 1);
             Some(checksum)
         },
-        _ => {
-            println!("ERROR: Unable to get KDE Neon {} checksum", release);
-            None
-        },
+        _ => None,
     }
 }

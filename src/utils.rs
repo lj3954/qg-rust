@@ -2,7 +2,11 @@ use std::error::Error;
 use std::fs::File;
 use crate::basic_distros;
 use chksum::{md5, sha1, sha2_256, sha2_512};
-#[derive(Debug)]
+use reqwest::header::HeaderMap;
+use reqwest::Client;
+use indicatif::{ProgressBar, ProgressStyle};
+
+#[derive(Debug, Clone)]
 pub enum Distro {
     Basic {
         url: String,
@@ -12,6 +16,11 @@ pub enum Distro {
         arch: String,
         checksum: Option<fn(&str, &str, &str) -> Option<String>>
     },
+}
+
+pub enum ArgsError {
+    NoOS,
+    NoRelease(String),
 }
 
 pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
@@ -34,11 +43,11 @@ pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> 
     Ok(status)
 }
 
-pub trait format_URL {
+pub trait FormatUrl {
     fn format(&self, release: &str, edition: &str, arch: &str) -> String;
 }
 
-impl format_URL for &str {
+impl FormatUrl for &str {
     fn format(&self, release: &str, edition: &str, arch: &str) -> String {
         self.replace("{RELEASE}", release).replace("{EDITION}", edition).replace("{ARCH}", arch)
     }
@@ -66,18 +75,42 @@ pub fn collect_distros() -> Result<Vec<Distro>, String> {
 
     println!("{:?}", distros);
 
-    // Test cases for checksums
-    for distro in &distros {
-        match distro {
-            Distro::Basic { url, name, release, edition, arch, checksum} => {
-                if let Some(getHash) = checksum {
-                    let checksum = getHash(release, edition, arch).unwrap();
-                    println!("{} {} {} {} hash: {}", name, release, edition, arch, checksum);
-                }
-            }
-            _ => ()
-        }
-    }
+    // // Test cases for checksums
+    // for distro in &distros {
+    //     match distro {
+    //         Distro::Basic { url, name, release, edition, arch, checksum} => {
+    //             if let Some(get_hash) = checksum {
+    //                 if let Some(checksum) = get_hash(release, edition, arch) {
+    //                     println!("{} {} {} {} hash: {}", name, release, edition, arch, checksum);
+    //                 }
+    //             }
+    //         }
+    //         _ => ()
+    //     }
+    // }
 
-    Err("Error".to_string())
+    Ok(distros)
+}
+
+pub async fn handle_download(url: String, vm_path: &str, headermap: HeaderMap) -> Result<(), std::io::Error> {
+    let client = Client::new();
+    let path = std::env::current_dir()?.join(vm_path);
+
+    let mut request = client.get(url).headers(headermap).send().await
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Unable to send request"))?;
+    let file_size = request.content_length().unwrap_or(0);
+
+    let progress = ProgressBar::new(file_size);
+    progress.set_style(ProgressStyle::with_template("[{elapsed}] {bar:40} {eta_precise} {decimal_bytes}/{decimal_total_bytes}  -   {decimal_bytes_per_sec}")
+        .unwrap().progress_chars("##-"));
+
+    let mut stream = request.bytes_stream();
+    let mut file = tokio::fs::File::create(&path).await.expect("Unable to create file");
+
+    while let Some(Ok(chunk)) = futures::StreamExt::next(&mut stream).await {
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+        progress.inc(chunk.len() as u64);
+    }
+    progress.finish();
+    Ok(())
 }
