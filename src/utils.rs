@@ -14,17 +14,138 @@ pub enum Distro {
         release: String,
         edition: String,
         arch: String,
-        checksum: Option<fn(&str, &str, &str) -> Option<String>>
+        checksum: Option<fn(&str, &str, &str) -> Option<String>>,
+        pretty_name: String,
     },
 }
 
-pub enum ArgsError {
-    NoOS,
-    NoRelease(String),
+impl Distro {
+    pub fn url(&self) -> String {
+        match self {
+            Distro::Basic { url, .. } => url.to_string()
+        }
+    }
+    pub fn checksum(&self) -> Option<String> {
+        match self {
+            Distro::Basic { release, edition, arch, checksum, .. } => {
+                if let Some(get_hash) = checksum {
+                    return get_hash(release, edition, arch);
+                }
+                None
+            }
+        }
+    }
 }
 
+pub trait Validation {
+    fn validate_os(&self, os: &str) -> (bool, &str);
+    fn validate_release(&self, os: &str, release: &str) -> bool;
+    fn validate_edition(&self, os: &str, release: &str, edition: &str) -> Option<Distro>;
+    fn list_oses(&self) -> String;
+    fn list_releases(&self, os: &str) -> String;
+    fn list_editions(&self, os: &str, chosen_release: &str) -> String;
+}
+
+impl Validation for Vec<Distro> {
+    fn validate_os(&self, os: &str) -> (bool, &str) {
+        for distro in self {
+            match distro {
+                Distro::Basic { name, pretty_name, .. } => {
+                    if name == os {
+                        return (true, pretty_name);
+                    }
+                }
+            }
+        }
+        (false, "")
+    }
+
+    fn validate_release(&self, os: &str, release: &str) -> bool {
+        for distro in self {
+            match distro {
+                Distro::Basic { name, release: distro_release, .. } => {
+                    if name == os && distro_release == release {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn validate_edition(&self, os: &str, release: &str, edition: &str) -> Option<Distro> {
+        for distro in self {
+            match &distro {
+                Distro::Basic { name, release: distro_release, edition: distro_edition, .. } => {
+                    if name == os && distro_release == release && distro_edition == edition {
+                        return Some(distro.clone());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn list_oses(&self) -> String {
+        let mut oses = String::new();
+        for distro in self {
+            match distro {
+                Distro::Basic { name, .. } => {
+                    if !oses.contains(name) {
+                        oses.push_str(name);
+                        oses.push_str(" ");
+                    }
+                }
+            }
+        }
+        oses
+    }
+
+    fn list_releases(&self, os: &str) -> String {
+        let mut matching_releases: Vec<&str> = Vec::new();
+        let mut release_type = "";
+        for distro in self {
+            match distro {
+                Distro::Basic { name, release, edition, .. } if name == os => {
+                    match edition.len() {
+                        0 => release_type = "basic",
+                        _ => release_type = "basic_edition"
+                    }
+                    if !matching_releases.contains(&&**release) {
+                        matching_releases.push(release);
+                        }
+                }
+                _ => ()
+            }
+        }
+
+        return match release_type {
+            "basic" => matching_releases.join(" "),
+            "basic_edition" => matching_releases.join(" ") + "\n - Editions: " + &self.list_editions(os, matching_releases[0]),
+            _ => String::new()
+        }
+    }
+
+    fn list_editions(&self, os: &str, chosen_release: &str) -> String {
+        let mut editions = String::new();
+        for distro in self {
+            match distro {
+                Distro::Basic { name, release, edition, .. } => {
+                    if name == os && release == chosen_release {
+                        editions.push_str(&edition);
+                        editions.push_str(" ");
+                    }
+                }
+            }
+        }
+        editions
+    }
+}
+
+pub struct DistroError (pub String, pub String);
+
 pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
-    let file = File::open(filepath.clone()).map_err(|e| format!("ERROR: Unable to open file {}", filepath))?;
+    let file = File::open(filepath.clone()).map_err(|_| format!("ERROR: Unable to open file {}", filepath))?;
     let status = match checksum.len() {
         32 => md5::chksum(file)
             .map_err(|_| format!("ERROR: Unable to get md5sum for file {}", filepath))?
