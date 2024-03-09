@@ -2,7 +2,7 @@ mod utils;
 mod basic_distros;
 
 use reqwest::header::HeaderMap;
-use utils::{Distro, collect_distros, DistroError, handle_download, Validation};
+use utils::{Distro, collect_distros, DistroError, handle_download, Validation, verify_image};
 
 
 fn main() {
@@ -35,9 +35,9 @@ fn main() {
         },
         _ => (),
     }
-    let (url, iso) = match distro {
+    let (url, iso) = match &distro {
         Distro::Basic { url, name, release, edition, .. } => {
-            (url, format!("{}{}{}.iso", name, release, edition))
+            (url.to_string(), format!("{}-{}{}.iso", name, release.to_string(), "-".to_string()+edition.as_str()))
         },
         _ => {
             eprintln!("ERROR: Unsupported distro type");
@@ -49,16 +49,43 @@ fn main() {
         _ => format!("{}-{}-{}", os, release, edition),
     };
     std::fs::create_dir(&vm_path).unwrap_or(());
-    let vm_path = vm_path + "/" +  iso.as_str();
+    let path = vm_path.clone() + "/" +  iso.as_str();
 
     println!("URL: {}, VM_PATH:   {}", url, vm_path);
     let download = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            handle_download(url, &vm_path, HeaderMap::new()).await.unwrap();
-        });
+            handle_download(url, path, HeaderMap::new()).await
+        })
     });
-    download.join().unwrap();
+    let checksum = match distro.has_checksum() {
+        true => distro.checksum().unwrap_or_else(|| {
+            eprintln!("ERROR: Unable to get checksum. The image will be unable to be verified.");
+            "".to_string()
+        }),
+        _ => "".to_string(),
+    };
+    // download.join().unwrap();
+    let path = match download.join() {
+        Ok(Ok(result)) => result,
+        Ok(Err(e)) => {
+            eprintln!("ERROR: {}", e);
+            std::process::exit(1);
+        },
+        Err(e) => {
+            eprintln!("Thread panicked with error: {:?}", e);
+            std::process::exit(1);
+        },
+    };
+
+    if checksum.len() > 0 {
+        println!("Verifying image");
+        match verify_image(path, checksum) {
+            Ok(true) => println!("Successfully verified image."),
+            Ok(false) => eprintln!("ERROR! Image verification failed."),
+            Err(e) => eprintln!("WARNING! {}", e),
+        }
+    }
 }
 
 fn get_args() -> (String, String, String) {
@@ -67,7 +94,7 @@ fn get_args() -> (String, String, String) {
     let os = args.get(1).unwrap_or(&blank);
     let release = args.get(2).unwrap_or(&blank);
     let edition = args.get(3).unwrap_or(&blank);
-   (os.to_string(), release.to_string(), edition.to_string())
+   (os.to_lowercase(), release.to_string(), edition.to_string())
 }
 
 fn find_distro(os: &str, release: &str, edition: &str, distros: Vec<Distro>) -> Result<Distro, DistroError> {

@@ -25,15 +25,20 @@ impl Distro {
             Distro::Basic { url, .. } => url.to_string()
         }
     }
+    pub fn has_checksum(&self) -> bool {
+        match self {
+            Distro::Basic { checksum, .. } => checksum.is_some()
+        }
+    }
     pub fn checksum(&self) -> Option<String> {
         match self {
             Distro::Basic { release, edition, arch, checksum, .. } => {
                 if let Some(get_hash) = checksum {
                     return get_hash(release, edition, arch);
                 }
-                None
             }
         }
+        None
     }
 }
 
@@ -148,18 +153,18 @@ pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> 
     let file = File::open(filepath.clone()).map_err(|_| format!("ERROR: Unable to open file {}", filepath))?;
     let status = match checksum.len() {
         32 => md5::chksum(file)
-            .map_err(|_| format!("ERROR: Unable to get md5sum for file {}", filepath))?
+            .map_err(|_| format!("Unable to get md5sum for file {}", filepath))?
             .to_hex_lowercase() == checksum,
         40 => sha1::chksum(file)
-            .map_err(|_| format!("ERROR: Unable to get sha1sum for file {}", filepath))?
+            .map_err(|_| format!("Unable to get sha1sum for file {}", filepath))?
             .to_hex_lowercase() == checksum,
         64 => sha2_256::chksum(file)
-            .map_err(|_| format!("ERROR: Unable to get sha256sum for file {}", filepath))?
+            .map_err(|_| format!("Unable to get sha256sum for file {}", filepath))?
             .to_hex_lowercase() == checksum,
         128 => sha2_512::chksum(file)
-            .map_err(|_| format!("ERROR: Unable to get sha512sum for file {}", filepath))?
+            .map_err(|_| format!("Unable to get sha512sum for file {}", filepath))?
             .to_hex_lowercase() == checksum,
-        _ => return Err("ERROR: Invalid checksum length".to_string()),
+        _ => return Err(format!("Can't guess hash algorithm, not checking {} hash.", filepath)),
     };
     Ok(status)
 }
@@ -213,9 +218,9 @@ pub fn collect_distros() -> Result<Vec<Distro>, String> {
     Ok(distros)
 }
 
-pub async fn handle_download(url: String, vm_path: &str, headermap: HeaderMap) -> Result<(), std::io::Error> {
+pub async fn handle_download(url: String, vm_path: String, headermap: HeaderMap) -> Result<String, std::io::Error> {
     let client = Client::new();
-    let path = std::env::current_dir()?.join(vm_path);
+    let path = std::env::current_dir()?.join(vm_path.clone());
 
     let mut request = client.get(url).headers(headermap).send().await
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Unable to send request"))?;
@@ -233,5 +238,6 @@ pub async fn handle_download(url: String, vm_path: &str, headermap: HeaderMap) -
         progress.inc(chunk.len() as u64);
     }
     progress.finish();
-    Ok(())
+    Ok(vm_path)
 }
+
