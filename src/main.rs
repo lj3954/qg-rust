@@ -35,15 +35,7 @@ fn main() {
         },
         _ => (),
     }
-    let (url, iso) = match &distro {
-        Distro::Basic { url, name, release, edition, .. } => {
-            (url.to_string(), format!("{}-{}{}.iso", name, release.to_string(), "-".to_string()+edition.as_str()))
-        },
-        _ => {
-            eprintln!("ERROR: Unsupported distro type");
-            std::process::exit(1);
-        },
-    };
+    let (url, iso) = distro.get_url_iso();
     let vm_path = match edition.as_str() {
         "" => format!("{}-{}", os, release),
         _ => format!("{}-{}-{}", os, release, edition),
@@ -65,21 +57,16 @@ fn main() {
         }),
         _ => "".to_string(),
     };
-    // download.join().unwrap();
-    let path = match download.join() {
-        Ok(Ok(result)) => result,
-        Ok(Err(e)) => {
-            eprintln!("ERROR: {}", e);
-            std::process::exit(1);
-        },
+    let path = match download.join().expect("ERROR: Download thread panicked") {
+        Ok(result) => result,
         Err(e) => {
-            eprintln!("Thread panicked with error: {:?}", e);
+            eprintln!("ERROR: {}", e);
             std::process::exit(1);
         },
     };
 
     if checksum.len() > 0 {
-        println!("Verifying image");
+        println!("Verifying image with checksum {}", &checksum);
         match verify_image(path, checksum) {
             Ok(true) => println!("Successfully verified image."),
             Ok(false) => eprintln!("ERROR! Image verification failed."),
@@ -118,155 +105,3 @@ fn find_distro(os: &str, release: &str, edition: &str, distros: Vec<Distro>) -> 
         }
     };
 }
-
-//     else if !&distros.validate_edition(&os, &release, &edition) {
-//         return match edition.len() {
-//             0 => Err(DistroError("ERROR! You must specify an edition.".to_string(), format!(" - Editions: {}", distros.list_editions(os, release)))),
-//             _ => Err(DistroError(format!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release), format!(" - Editions: {}", distros.list_editions(os, release)))),
-//         }
-//     }
-// // let (valid_os, pretty_name) = &distros.validate_os(&os);
-// // if !valid_os {
-// //     return Err(DistroError(format!("ERROR! {} is not a supported OS.", os), format!(" - Operating systems: {}", distros.list_oses())));
-// // }
-
-// fn find_matching(os: &str, chosen_release: &str, chosen_edition: &str, distros: Vec<Distro>) -> Result<Distro, String> {
-//     let mut matches = (false, false, false);
-//     for distro in &distros {
-//         match &distro {
-//             Distro::Basic { url, name, release, edition, arch, checksum } => {
-//                 matches = (matches.0 || name == os, matches.1 || name == os && release == chosen_release, matches.2 || name == os && matches.1 && edition == chosen_edition);
-//                 if name == os  && release == chosen_release && edition == chosen_edition {
-//                     return Ok(distro.clone());
-//                 }
-//             },
-//             _ => (),
-//         }
-//     }
-//     let err = match matches {
-//         (true, true, false) => {
-//             let editions = list_editions(&os, &chosen_release, &distros);
-//             format!("Edition not found.\n{} {} Editions: {}", os, chosen_release, editions)
-//         },
-//         (true, false, _) => format!("Release not found.\n\n{}", list_releases(os, distros)),
-//         (false, _, _) => {
-//             let oses = list_oses(distros);
-//             format!("ERROR: OS not found.\n Supported operating systems: {}", oses)
-//         },
-//         _ => "".to_string(),
-//     };
-//     Err(err)
-// }
-//
-// fn validate_os(os: &str, distros: &Vec<Distro>) -> bool {
-//     for distro in distros {
-//         match &distro {
-//             Distro::Basic { url:_, name, release:_, edition:_, arch:_, checksum:_ } => {
-//                 if name == os {
-//                     return true;
-//                 }
-//             },
-//             _ => (),
-//         }
-//     }
-//     false
-// }
-//
-// fn list_oses(distros: Vec<Distro>) -> String {
-//     let mut oses = String::new();
-//     for distro in distros {
-//         match &distro {
-//             Distro::Basic { url:_, name, release:_, edition:_, arch:_, checksum:_ } => {
-//                 if !oses.contains(name) {
-//                     oses.push_str(name);
-//                     oses.push_str(" ");
-//                 }
-//             }
-//         }
-//     }
-//     oses
-// }
-// fn list_releases(os: &str, distros: Vec<Distro>) -> String {
-//     let mut releases = String::new();
-//     for distro in &distros {
-//         match &distro {
-//             Distro::Basic { url:_, name, release, edition:_, arch:_, checksum:_ } => {
-//                 if name == os && !releases.contains(release) {
-//                     releases.push_str(format!("{}    {}\n", release, list_editions(os, release, &distros)).as_str());
-//                 }
-//             },
-//             _ => (),
-//         }
-//     }
-//     releases
-// }
-//
-// fn list_editions(os: &str, chosen_release: &str, distros: &Vec<Distro>) -> String {
-//     let mut editions = String::new();
-//     for distro in distros {
-//         match &distro {
-//             Distro::Basic { url:_, name, release, edition, arch:_, checksum:_ } => {
-//                 if name == os && release == chosen_release {
-//                     editions.push_str(&edition);
-//                     editions.push_str(" ");
-//                 }
-//             }
-//         }
-//     }
-//     editions
-// }
-
-
-
-// if os.len() == 0 {
-//     eprintln!("ERROR! You must specify an operating system.");
-//     println!(" - Operating Systems: {}", distros.list_oses());
-// } else if !&distros.validate_os(&os) {
-//     eprintln!("ERROR! {} is not a supported OS.", os);
-//     println!(" - Operating Systems: {}", distros.list_oses());
-// } else if release.len() == 0 {
-//     eprintln!("ERROR! You must specify a release.");
-//     println!(" - Releases: {}", distros.list_releases(&os));
-// } else if !&distros.validate_release(&os, &release) {
-//     eprintln!("ERROR! {} {} is not a supported release.");
-//     println!(" - Releases: {}", distros.list_releases(&os));
-// }
-// else if !&distros.validate_release(&os, &release) {
-//     eprintln!("ERROR! You must specify a valid release.");
-// println!(" - Releases: {}", list_releases(&os, distros));
-// }
-
-// let (os, release, edition) = match get_args() {
-//     Ok(args) => args,
-//     Err(ArgsError::NoOS) => {
-//         eprintln!("ERROR: No OS specified");
-//         println!("{}", list_oses(distros));
-//         std::process::exit(1);
-//     },
-//     Err(ArgsError::NoRelease(os)) => {
-//         if validate_os(&os, &distros) {
-//             eprintln!("ERROR: No release specified");
-//             println!("{}", list_releases(&os, distros));
-//             std::process::exit(1);
-//         }
-//         eprintln!("ERROR: Invalid OS");
-//         println!("{}", list_oses(distros));
-//         std::process::exit(1);
-//     },
-// };
-// let distro = find_matching(&os, &release, &edition, distros).unwrap_or_else(|e| {
-//     eprintln!("ERROR: {}", e);
-//     std::process::exit(1);
-// });
-
-
-
-
-
-
-
-
-
-
-
-

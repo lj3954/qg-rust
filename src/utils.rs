@@ -22,9 +22,17 @@ pub enum Distro {
 }
 
 impl Distro {
-    pub fn url(&self) -> String {
+    pub fn get_url_iso(&self) -> (String, String) {
+        let image_types = vec![".iso", ".img", ".dmg", ".chunklist", ".xz", ".raw", ".zip", ".tar", ".gz"];
         match self {
-            Distro::Basic { url, .. } => url.to_string()
+            Distro::Basic { url, name, release, edition, .. } => {
+                let iso = match url.rsplit('/').next() {
+                    Some(iso) if image_types.iter().any(|&extension| iso.ends_with(extension)) => iso.to_string(),
+                    _ if edition.len() > 0 => format!("{}-{}-{}.iso", name, release, edition),
+                    _ => format!("{}-{}.iso", name, release),
+                };
+                (url.to_string(), iso)
+            }
         }
     }
     pub fn has_checksum(&self) -> bool {
