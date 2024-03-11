@@ -1,7 +1,9 @@
 use std::error::Error;
-use std::fs::File;
+use std::fs;
 use crate::basic_distros;
-use chksum::{md5, sha1, sha2_256, sha2_512};
+use sha1::Sha1;
+use sha2::{Sha256, Sha512, Digest};
+use md5::Md5;
 use reqwest::header::HeaderMap;
 use reqwest::Client;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -150,23 +152,26 @@ impl Validation for Vec<Distro> {
 pub struct DistroError (pub String, pub String);
 
 pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
-    let file = File::open(filepath.clone()).map_err(|_| format!("ERROR: Unable to open file {}", filepath))?;
-    let status = match checksum.len() {
-        32 => md5::chksum(file)
-            .map_err(|_| format!("Unable to get md5sum for file {}", filepath))?
-            .to_hex_lowercase() == checksum,
-        40 => sha1::chksum(file)
-            .map_err(|_| format!("Unable to get sha1sum for file {}", filepath))?
-            .to_hex_lowercase() == checksum,
-        64 => sha2_256::chksum(file)
-            .map_err(|_| format!("Unable to get sha256sum for file {}", filepath))?
-            .to_hex_lowercase() == checksum,
-        128 => sha2_512::chksum(file)
-            .map_err(|_| format!("Unable to get sha512sum for file {}", filepath))?
-            .to_hex_lowercase() == checksum,
+    let hash = match checksum.len() {
+        32 => {
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            hex::encode(Md5::digest(bytes))
+        },
+        40 => {
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            hex::encode(Sha1::digest(bytes))
+        },
+        64 => {
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            hex::encode(Sha256::digest(bytes))
+        },
+        128 => {
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            hex::encode(Sha512::digest(bytes))
+        },
         _ => return Err(format!("Can't guess hash algorithm, not checking {} hash.", filepath)),
     };
-    Ok(status)
+    Ok(hash == checksum)
 }
 
 pub trait FormatUrl {
