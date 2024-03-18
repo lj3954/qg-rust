@@ -54,8 +54,8 @@ fn get_args() -> (String, String, String) {
    (os.to_lowercase(), release.to_string(), edition.to_string())
 }
 
-fn spawn_downloads(url_iso_list: Vec<(String, String)>, vm_path: String, distro: Distro) {
-    for (url, iso) in url_iso_list {
+fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: String, distro: Distro) {
+    for (url, headers, iso) in url_iso_list {
         let path = vm_path.clone() + "/" +  iso.as_str();
         println!("URL: {}, VM_PATH:   {}", url, vm_path);
         let download = std::thread::spawn(move || {
