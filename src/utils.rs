@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs;
-use crate::basic_distros;
+use crate::{basic_distros, advanced_distros};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512, Digest};
 use md5::Md5;
@@ -25,6 +25,7 @@ pub enum Distro {
     Advanced {
         urls: fn(&str, &str, &str) -> Vec<String>,
         name: String,
+        re_function: fn() -> Vec<(String, Vec<String>)>,
         release: String,
         edition: String,
         arch: String,
@@ -316,6 +317,8 @@ pub fn collect_distros() -> Result<Vec<Distro>, String> {
     let mut distros: Vec<Distro> = Vec::new();
     let mut basic_distros = basic_distros::basic_distros();
     distros.append(&mut basic_distros);
+    let mut advanced_distros = advanced_distros::advanced_distros();
+    distros.append(&mut advanced_distros);
 
     println!("{:?}", distros);
 
