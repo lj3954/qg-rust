@@ -57,11 +57,10 @@ fn get_args() -> (String, String, String) {
 fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: String, distro: Distro) {
     for (url, headers, iso) in url_iso_list {
         let path = vm_path.clone() + "/" +  iso.as_str();
-        println!("URL: {}, VM_PATH:   {}", url, vm_path);
         let download = std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                handle_download(url, path, HeaderMap::new()).await
+                handle_download(url, path, headers).await
             })
         });
         let checksum = match distro.has_checksum() {
@@ -83,7 +82,10 @@ fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: Stri
             println!("Verifying image with checksum {}", &checksum);
             match verify_image(path, checksum) {
                 Ok(true) => println!("Successfully verified image."),
-                Ok(false) => eprintln!("ERROR! Image verification failed."),
+                Ok(false) => {
+                    eprintln!("ERROR! Image verification failed.");
+                    std::process::exit(1);
+                },
                 Err(e) => eprintln!("WARNING! {}", e),
             }
         }
