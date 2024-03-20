@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::fs;
-use crate::{basic_distros, advanced_distros};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512, Digest};
 use md5::Md5;
@@ -8,262 +7,207 @@ use reqwest::header::HeaderMap;
 use reqwest::Client;
 use indicatif::{ProgressBar, ProgressStyle};
 
+
 #[derive(Debug, Clone)]
-pub enum Distro {
-    // 'Basic' distros have a simple URL format. No requests need to be made to find the URL
-    Basic {
-        url: String,
-        name: String,
-        release: String,
-        edition: String,
-        arch: String,
-        checksum: Option<fn(&str, &str, &str) -> Option<String>>,
-        pretty_name: String,
-    },
-    // 'Advanced' distros do not have a simple URL format. The URL is found through a function call
-    // These can also have multiple files to download, so the function returns a String vector.
-    Advanced {
-        urls: fn(&str, &str, &str) -> Vec<String>,
-        name: String,
-        re_function: fn() -> Vec<(String, Vec<String>)>,
-        release: String,
-        edition: String,
-        arch: String,
-        checksum: Option<fn(&str, &str, &str) -> Option<String>>,
-        pretty_name: String,
-    },
-    // 'Custom' distros add a HeaderMap, as well as handling their own image verification
-    Custom {
-        urls: fn(&str, &str, &str) -> Vec<(String, HeaderMap)>,
-        name: String,
-        release: String,
-        edition: String,
-        arch: String,
-        checksum: Option<fn(String, &str, &str, &str) -> bool>,
-        pretty_name: String,
-    }
+pub struct Distro {
+    pub pretty_name: String,
+    pub name: String,
+    pub url: URL,
+    pub release_edition: ReleaseEdition,
+    pub arch: String,
+    pub checksum_function: Checksum,
+}
+
+#[derive(Debug, Clone)]
+pub enum Checksum {
+    None,
+    Normal(fn(&str, &str, &str) -> Option<String>),
+    Manual(fn(String, &str, &str, &str) -> bool),
+}
+
+#[derive(Debug, Clone)]
+pub enum URL {
+    Format(String),
+    Function(fn(&str, &str, &str) -> Result<Vec<String>, Box<dyn Error>>),
+    PlusHeaders(fn(&str, &str, &str) -> Result<Vec<(String, HeaderMap)>, Box<dyn Error>>),
+}
+
+#[derive(Debug, Clone)]
+pub enum ReleaseEdition {
+    Basic(Vec<String>, Vec<String>),
+    Unique(Vec<(String, Vec<String>)>),
+    OnlineBasic(fn() -> Result<(Vec<String>, Vec<String>), Box<dyn Error>>),
+    OnlineUnique(fn() -> Result<Vec<(String, Vec<String>)>, Box<dyn Error>>),
 }
 
 impl Distro {
-    pub fn get_url_iso(&self) -> Vec<(String, HeaderMap, String)> {
+    pub fn get_url_iso(&self, release: &str, edition: &str, arch: &str) -> Vec<(String, HeaderMap, String)> {
         let image_types = vec![".iso", ".img", ".dmg", ".chunklist", ".xz", ".raw", ".zip", ".tar", ".gz"];
-        let mut list: Vec<(String, HeaderMap, String)> = Vec::new();
-        let (name, release, edition, urls) = match self {
-            Distro::Basic { url, name, release, edition, .. } => (name, release, edition, vec![(url.to_string(), HeaderMap::new())]),
-            Distro::Advanced { urls, name, release, edition, arch, .. } => {
-                let urls = urls(&release, &edition, &arch)
-                    .iter()
-                    .map(|url| (url.to_string(), HeaderMap::new()))
-                    .collect();
-                (name, release, edition, urls)
-            },
-            Distro::Custom { urls, name, release, edition, arch, .. } => {
-                let urls = urls(&release, &edition, &arch);
-                (name, release, edition, urls)
-            },
-        };
-        for (url, header) in urls {
-            let iso = match url.rsplit('/').next() {
+
+        let Distro { url, name, .. } = self;
+        let iso_format = |url: &str| {
+            match url.rsplit('/').next() {
                 Some(iso) if image_types.iter().any(|&extension| iso.ends_with(extension)) => iso.to_string(),
                 _ if edition.len() > 0 => format!("{}-{}-{}.iso", name, release, edition),
                 _ => format!("{}-{}.iso", name, release),
-            };
-            list.push((url.to_string(), header, iso));
-        }
+            }
+        };
 
-        list
+        match url {
+            URL::Format(URLString) => vec![(URLString.as_str().format(release, edition, arch), HeaderMap::new(), iso_format(URLString))],
+            URL::Function(GetURL) => {
+                match GetURL(release, edition, arch) {
+                    Ok(urls) => urls.iter()
+                        .map(|url| (url.to_string(), HeaderMap::new(), iso_format(url)))
+                        .collect(),
+                    Err(e) => {
+                        eprintln!("Unable to get URLs: {}", e);
+                        std::process::exit(1);
+                    },
+                }
+            },
+            URL::PlusHeaders(GetInfo) => {
+                match GetInfo(release, edition, arch) {
+                    Ok(urls) => urls.iter()
+                        .map(|(url, header)| (url.to_string(), header.clone(), iso_format(url)))
+                        .collect(),
+                    Err(e) => {
+                        eprintln!("Unable to get URLs: {}", e);
+                        std::process::exit(1);
+                    },
+                }
+            },
+        }
     }
     pub fn has_checksum(&self) -> bool {
-        match self {
-            Distro::Basic { checksum, .. } => checksum.is_some(),
-            Distro::Advanced { checksum, .. } => checksum.is_some(),
-            Distro::Custom { checksum, .. } => checksum.is_some(),
+        match self.checksum_function {
+            Checksum::Normal(_) => true,
+            _ => false,
         }
     }
-    pub fn checksum(&self) -> Option<String> {
-        match self {
-            Distro::Basic { release, edition, arch, checksum, .. } => {
-                if let Some(get_hash) = checksum {
-                    return get_hash(release, edition, arch);
-                }
-            },
-            Distro::Advanced { release, edition, arch, checksum, .. } => {
-                if let Some(get_hash) = checksum {
-                    return get_hash(release, edition, arch);
-                }
-            },
-            _ => ()
+
+    pub fn get_checksum(&self, release: &str, edition: &str, arch: &str) -> Option<String> {
+        match self.checksum_function {
+            Checksum::Normal(get_hash) => get_hash(release, edition, arch),
+            _ => None,
         }
-        None
+    }
+
+    pub fn verify_after(&self, path: String, release: &str, edition: &str, arch: &str) -> Option<bool> {
+        match self.checksum_function {
+            Checksum::Manual(verify) => Some(verify(path, release, edition, arch)),
+            _ => None,
+        }
     }
 }
 
 pub trait Validation {
-    fn validate_os(&self, os: &str) -> (bool, &str);
-    fn validate_release(&self, os: &str, release: &str) -> bool;
-    fn validate_edition(&self, os: &str, release: &str, edition: &str) -> Option<Distro>;
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str) -> Distro;
     fn list_oses(&self) -> String;
-    fn list_releases(&self, os: &str) -> String;
-    fn list_editions(&self, os: &str, chosen_release: &str) -> String;
+    fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String;
 }
 
 impl Validation for Vec<Distro> {
-    fn validate_os(&self, os: &str) -> (bool, &str) {
-        for distro in self {
-            match distro {
-                Distro::Basic { name, pretty_name, .. } => {
-                    if name == os {
-                        return (true, pretty_name);
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str) -> Distro {
+        if os.len() == 0 {
+            eprintln!("ERROR! You must specify an operating system.");
+            println!(" - Operating systems: {}", self.list_oses());
+            std::process::exit(1);
+        }
+
+        let distros = self.iter().filter(|distro| distro.name == os)
+            .cloned()
+            .collect::<Vec<Distro>>();
+        
+        if distros.len() == 0 {
+            eprintln!("ERROR! {} is not a supported OS.", os);
+            println!(" - Operating systems: {}", self.list_oses());
+            std::process::exit(1);
+        }
+        let pretty_name = distros[0].pretty_name.clone();
+
+        let mut data: Vec<(String, Vec<String>)> = Vec::new();
+
+        for distro in distros {
+            match &distro.release_edition {
+                ReleaseEdition::Basic(releases, editions) => {
+                    if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
+                        return distro.clone();
                     }
+                    data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
                 },
-                Distro::Advanced { name, pretty_name, .. } => {
-                    if name == os {
-                        return (true, pretty_name);
+                ReleaseEdition::Unique(releases) => {
+                    if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
+                        return distro.clone();
                     }
+                    data.append(&mut releases.clone());
                 },
-                Distro::Custom { name, pretty_name, .. } => {
-                    if name == os {
-                        return (true, pretty_name);
-                    }
+                ReleaseEdition::OnlineBasic(get_releases) => match get_releases() {
+                    Ok((releases, editions)) => {
+                        if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
+                            return distro.clone();
+                        }
+                        data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
+                    },
+                    Err(e) => {
+                        eprintln!("Unable to get releases for {}: {}", distro.name, e);
+                        std::process::exit(1);
+                    },
+                },
+                ReleaseEdition::OnlineUnique(get_info) => match get_info() {
+                    Ok(releases) => {
+                        if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
+                            return distro.clone();
+                        }
+                        data.append(&mut releases.clone());
+                    },
+                    Err(e) => {
+                        eprintln!("Unable to get releases for {}: {}", distro.name, e);
+                        std::process::exit(1);
+                    },
+                },
+            }
+        }
+
+        if release.len() == 0 {
+            eprintln!("ERROR! You must specify a release.");
+            println!("{}", self.list_releases(data));
+            std::process::exit(1);
+        }
+
+        for (release, editions) in &data {
+            if release == release {
+                if !editions.contains(&edition.to_string()) {
+                    eprintln!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release);
+                    println!(" - Editions: {}", editions.join(" "));
+                    std::process::exit(1);
+                } else {
+                    panic!("ERROR! Somehow an OS was not returned despite being found in the list. This should never happen.");
                 }
             }
         }
-        (false, "")
+        eprintln!("ERROR! {} is not a supported {} release.", release, pretty_name);
+        println!("{}", self.list_releases(data));
+        std::process::exit(1);
     }
 
-    fn validate_release(&self, os: &str, release: &str) -> bool {
-        for distro in self {
-            match distro {
-                Distro::Basic { name, release: distro_release, .. } if name == os && distro_release == release  => return true,
-                Distro::Advanced { name, release: distro_release, .. } if name == os && distro_release == release  => return true,
-                Distro::Custom { name, release: distro_release, .. } if name == os && distro_release == release  => return true,
-                _ => ()
-            }
-        }
-        false
-    }
-
-    fn validate_edition(&self, os: &str, release: &str, edition: &str) -> Option<Distro> {
-        for distro in self {
-            match &distro {
-                Distro::Basic { name, release: distro_release, edition: distro_edition, .. } => {
-                    if name == os && distro_release == release && distro_edition == edition {
-                        return Some(distro.clone());
-                    }
-                },
-                Distro::Advanced { name, release: distro_release, edition: distro_edition, .. } => {
-                    if name == os && distro_release == release && distro_edition == edition {
-                        return Some(distro.clone());
-                    }
-                },
-                Distro::Custom { name, release: distro_release, edition: distro_edition, .. } => {
-                    if name == os && distro_release == release && distro_edition == edition {
-                        return Some(distro.clone());
-                    }
-                }
-            }
-        }
-        None
-    }
 
     fn list_oses(&self) -> String {
-        let mut oses = String::new();
-        for distro in self {
-            match distro {
-                Distro::Basic { name, .. } => {
-                    if !oses.contains(name) {
-                        oses.push_str(name);
-                        oses.push_str(" ");
-                    }
-                },
-                Distro::Advanced { name, .. } => {
-                    if !oses.contains(name) {
-                        oses.push_str(name);
-                        oses.push_str(" ");
-                    }
-                },
-                Distro::Custom { name, .. } => {
-                    if !oses.contains(name) {
-                        oses.push_str(name);
-                        oses.push_str(" ");
-                    }
-                },
-            }
-        }
-        oses
+        self.iter().map(|distro| distro.name.to_string()).collect::<String>()
     }
 
-    fn list_releases(&self, os: &str) -> String {
-        let mut matching_releases: Vec<String> = Vec::new();
-        let mut release_type = "";
-        for distro in self {
-            let (name, release, edition) = match distro {
-                Distro::Basic { name, release, edition, .. } => (name, release, edition),
-                Distro::Advanced { name, release, edition, .. } => (name, release, edition),
-                Distro::Custom { name, release, edition, .. } => (name, release, edition),
-            };
-            if name == os {
-                if release_type.len() == 0 {
-                    match edition.len() {
-                        0 => release_type = "basic",
-                        _ => release_type = "edition",
-                    }
-                }
-                if !matching_releases.contains(&release) {
-                    matching_releases.push(release.to_string());
-                }
-            }
+    fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String {
+        if releases.iter().all(|(_, editions)| editions.len() == 0) {
+            return format!(" - Releases: {}",  releases.iter().map(|(release, _)| release.to_string()).collect::<Vec<String>>().join(" "));
+        } else if releases.iter().all(|(_, editions)| editions == &releases[0].1) {
+            return format!(" - Releases: {}\n - Editions: {}", releases.iter().map(|(release, _)| release.to_string()).collect::<Vec<String>>().join(" "), releases[0].1.join(" "));
+        } else {
+            return releases.iter().map(|(release, editions)| {
+                format!("{}     -     {}", release, editions.join(" "))
+            }).collect::<Vec<String>>().join("\n");
         }
-
-        match release_type {
-            "basic" => matching_releases.join(" "),
-            "edition" => {
-                let mut editions: Vec<String> = Vec::new();
-                for release in &matching_releases {
-                    editions.push(self.list_editions(&os, release));
-                }
-                // Determine whether all editions are the same
-                if editions.iter().all(|edition| edition == &editions[0]) {
-                    format!("{}\n - Editions: {}", matching_releases.join(" "), editions[0])
-                } else {
-                    matching_releases.iter().enumerate().map(|(index, release)| {
-                        format!("{}     -     {}", release, editions.get(index).unwrap())
-                    }).collect::<Vec<String>>().join("\n")
-                }
-            },
-            _ => String::new()
-        }
-    }
-
-    fn list_editions(&self, os: &str, chosen_release: &str) -> String {
-        let mut editions = String::new();
-        for distro in self {
-            match distro {
-                Distro::Basic { name, release, edition, .. } => {
-                    if name == os && release == chosen_release {
-                        editions.push_str(&edition);
-                        editions.push_str(" ");
-                    }
-                },
-                Distro::Advanced { name, release, edition, .. } => {
-                    if name == os && release == chosen_release {
-                        editions.push_str(&edition);
-                        editions.push_str(" ");
-                    }
-                },
-                Distro::Custom { name, release, edition, .. } => {
-                    if name == os && release == chosen_release {
-                        editions.push_str(&edition);
-                        editions.push_str(" ");
-                    }
-                },
-            }
-        }
-        editions
     }
 }
-
-pub struct DistroError (pub String, pub String);
 
 pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
     let hash = match checksum.len() {
@@ -315,10 +259,6 @@ pub fn cut_space(s: &str, n: usize) -> String {
 
 pub fn collect_distros() -> Result<Vec<Distro>, String> {
     let mut distros: Vec<Distro> = Vec::new();
-    let mut basic_distros = basic_distros::basic_distros();
-    distros.append(&mut basic_distros);
-    let mut advanced_distros = advanced_distros::advanced_distros();
-    distros.append(&mut advanced_distros);
 
     println!("{:?}", distros);
 
