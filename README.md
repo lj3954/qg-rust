@@ -2,7 +2,17 @@ This is a re-implementation of Quickget from the Quickemu project (https://githu
 
 This branch focuses on replicating the behaviour of the original bash script as effectively as possible. 
 
+Performance will be prioritized. For example, checksums will be fetched during, rather than before, the file download, which can save a significant amount of time depending on connection.
+Releases & Editions are also fetched from within the same function in the case that they're dynamic, which means that it's possible that only one request needs to be made. 
+After all, almost all of the time waiting is caused by requests to web servers.
+
 It is very much **WIP**. The majority of features are not implemented, and there are many major bugs. 
+
+Currently, downloads are essentially fully implemented, as well as checksum verification. 
+The next step is to implement VM creation. 
+
+Comments will be added throughout the file distros are added in, in order to make implementation of new OSes easier,
+hopefully including for people from the original quickemu project who may not understand any Rust. 
 
 ## Compatibility
 
