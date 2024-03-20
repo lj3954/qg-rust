@@ -137,7 +137,7 @@ impl Validation for Vec<Distro> {
                     data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
                 },
                 ReleaseEdition::Unique(releases) => {
-                    if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
+                    if releases.iter().any(|(rel, editions)| rel == release && { editions.len() == 0 || editions.contains(&edition.to_string()) }) {
                         return distro.clone();
                     }
                     data.append(&mut releases.clone());
@@ -175,8 +175,8 @@ impl Validation for Vec<Distro> {
             std::process::exit(1);
         }
 
-        for (release, editions) in &data {
-            if release == release {
+        for (rel, editions) in &data {
+            if rel == release {
                 if !editions.contains(&edition.to_string()) {
                     eprintln!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release);
                     println!(" - Editions: {}", editions.join(" "));
@@ -193,7 +193,7 @@ impl Validation for Vec<Distro> {
 
 
     fn list_oses(&self) -> String {
-        self.iter().map(|distro| distro.name.to_string()).collect::<String>()
+        self.iter().map(|distro| distro.name.to_string()).collect::<Vec<String>>().join(" ")
     }
 
     fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String {
@@ -257,33 +257,11 @@ pub fn cut_space(s: &str, n: usize) -> String {
     "".to_string()
 }
 
-pub fn collect_distros() -> Result<Vec<Distro>, String> {
-    let mut distros: Vec<Distro> = Vec::new();
-
-    println!("{:?}", distros);
-
-    // // Test cases for checksums
-    // for distro in &distros {
-    //     match distro {
-    //         Distro::Basic { url, name, release, edition, arch, checksum} => {
-    //             if let Some(get_hash) = checksum {
-    //                 if let Some(checksum) = get_hash(release, edition, arch) {
-    //                     println!("{} {} {} {} hash: {}", name, release, edition, arch, checksum);
-    //                 }
-    //             }
-    //         }
-    //         _ => ()
-    //     }
-    // }
-
-    Ok(distros)
-}
-
 pub async fn handle_download(url: String, vm_path: String, headermap: HeaderMap) -> Result<String, std::io::Error> {
     let client = Client::new();
     let path = std::env::current_dir()?.join(vm_path.clone());
 
-    let mut request = client.get(url).headers(headermap).send().await
+    let request = client.get(url).headers(headermap).send().await
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Unable to send request"))?;
     let file_size = request.content_length().unwrap_or(0);
 

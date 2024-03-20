@@ -2,7 +2,7 @@ mod utils;
 mod distros;
 
 use reqwest::header::HeaderMap;
-use utils::{Distro, collect_distros, handle_download, Validation, verify_image};
+use utils::{Distro, handle_download, Validation, verify_image};
 
 
 fn main() {
@@ -18,19 +18,9 @@ fn main() {
     println!("{:?}", distro);
 
 
- //`   println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
- //`   match &distro {
- //`       Distro::Basic {name, release, edition, arch, pretty_name, .. } => {
- //`           let edition = " ".to_string() + edition;
- //`           if pretty_name.len() > 0 {
- //`               println!("Downloading {} {}{} {}...", pretty_name, release, edition, arch);
- //`           } else {
- //`               println!("Downloading {} {}{} {}...", name, release, edition, arch);
- //`           }
- //`       },
- //`       _ => (),
- //`   }
-    let url_iso_list = distro.get_url_iso(&release, &edition, "amd64");
+   println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
+
+   let url_iso_list = distro.get_url_iso(&release, &edition, "amd64");
     let vm_path = match edition.as_str() {
         "" => format!("{}-{}", os, release),
         _ => format!("{}-{}-{}", os, release, edition),
@@ -86,25 +76,3 @@ fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: Stri
         }
     }
 }
-
-//fn find_distro(os: &str, release: &str, edition: &str, distros: Vec<Distro>) -> Result<Distro, DistroError> {
-//    if os.len() == 0 {
-//        return Err(DistroError("ERROR! You must specify an operating system.".to_string(), format!(" - Operating systems: {}", distros.list_oses())));
-//    }
-//    let pretty_name = match distros.validate_os(&os) {
-//        (true, pretty_name) => pretty_name,
-//        (false, _) => return Err(DistroError(format!("ERROR! {} is not a supported OS.", os), format!(" - Operating systems: {}", distros.list_oses()))),
-//    };
-//    if release.len() == 0 {
-//        return Err(DistroError("ERROR! You must specify a release.".to_string(), format!(" - Releases: {}", distros.list_releases(os))));
-//    } else if !&distros.validate_release(&os, &release) {
-//        return Err(DistroError(format!("ERROR! {} {} is not a supported release.", pretty_name, release), format!(" - Releases: {}", distros.list_releases(os))));
-//    }
-//    return match distros.validate_edition(&os, &release, &edition) {
-//        Some(distro) => Ok(distro),
-//        None => match edition.len() {
-//            0 => Err(DistroError("ERROR! You must specify an edition.".to_string(), format!(" - Editions: {}", distros.list_editions(os, release)))),
-//            _ => Err(DistroError(format!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release), format!(" - Editions: {}", distros.list_editions(os, release)))),
-//        }
-//    };
-//}
