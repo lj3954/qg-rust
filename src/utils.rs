@@ -102,22 +102,23 @@ impl Distro {
 }
 
 pub trait Validation {
-    fn validate_parameters(&self, os: &str, release: &str, edition: &str) -> Distro;
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> Distro;
     fn list_oses(&self) -> String;
     fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String;
 }
 
 impl Validation for Vec<Distro> {
-    fn validate_parameters(&self, os: &str, release: &str, edition: &str) -> Distro {
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> Distro {
         if os.len() == 0 {
             eprintln!("ERROR! You must specify an operating system.");
             println!(" - Operating systems: {}", self.list_oses());
             std::process::exit(1);
         }
 
-        let distros = self.iter().filter(|distro| distro.name == os)
-            .cloned()
-            .collect::<Vec<Distro>>();
+        let distros:Vec<Distro> = match self.iter().all(|distro| distro.name == os && distro.arch == arch) {
+                true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).cloned().collect(),
+                false => self.iter().filter(|distro| distro.name == os).cloned().collect(),
+        };
         
         if distros.len() == 0 {
             eprintln!("ERROR! {} is not a supported OS.", os);

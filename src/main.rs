@@ -6,14 +6,9 @@ use utils::{Distro, handle_download, Validation, verify_image};
 
 
 fn main() {
-//    let distros = collect_distros().unwrap_or_else(|e| {
-//        eprintln!("ERROR: {}", e);
-//        std::process::exit(1);
-//    });
-
     let distros = distros::distros();
     let (os, release, edition, download_type, arch) = get_args();
-    let distro = distros.validate_parameters(&os, &release, &edition);
+    let distro = distros.validate_parameters(&os, &release, &edition, &arch);
 
     println!("{:?}", distro);
 
@@ -25,10 +20,7 @@ fn main() {
     match download_type {
         DownloadType::Normal(vm_path) => {
             if vm_path.len() > 0 {
-                std::fs::create_dir(&vm_path).unwrap_or_else(|e| {
-                    eprintln!("ERROR: Unable to create directory: {}", e);
-                    std::process::exit(1);
-                });
+                std::fs::create_dir(&vm_path).unwrap_or(());
             }
             spawn_downloads(url_iso_list, vm_path, distro, &release, &edition, &arch)
         },
