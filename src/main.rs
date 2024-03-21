@@ -12,36 +12,105 @@ fn main() {
 //    });
 
     let distros = distros::distros();
-    let (os, release, edition) = get_args();
+    let (os, release, edition, download_type, arch) = get_args();
     let distro = distros.validate_parameters(&os, &release, &edition);
 
     println!("{:?}", distro);
 
 
-   println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
+    println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
 
-   let url_iso_list = distro.get_url_iso(&release, &edition, "amd64");
-    let vm_path = match edition.as_str() {
-        "" => format!("{}-{}", os, release),
-        _ => format!("{}-{}-{}", os, release, edition),
-    };
-    std::fs::create_dir(&vm_path).unwrap_or(());
-    println!("Downloading to {}", &vm_path);
-    spawn_downloads(url_iso_list, vm_path, distro, &release, &edition, "amd64");
+    let url_iso_list = distro.get_url_iso(&release, &edition, "amd64");
+
+    match download_type {
+        DownloadType::Normal(vm_path) => {
+            if vm_path.len() > 0 {
+                std::fs::create_dir(&vm_path).unwrap_or_else(|e| {
+                    eprintln!("ERROR: Unable to create directory: {}", e);
+                    std::process::exit(1);
+                });
+            }
+            spawn_downloads(url_iso_list, vm_path, distro, &release, &edition, &arch)
+        },
+        DownloadType::Test => {
+            println!("PLACEHOLDER");
+            std::process::exit(1);
+        },
+        DownloadType::Show => {
+            println!("PLACEHOLDER");
+            std::process::exit(1);
+        },
+        DownloadType::Homepage => {
+            println!("PLACEHOLDER");
+            std::process::exit(1);
+        },
+        _ => {
+            eprintln!("ERROR: Invalid download type.");
+            std::process::exit(1);
+        },
+    }
+
 }
 
-fn get_args() -> (String, String, String) {
-    let blank = String::from("");
-    let args: Vec<String> = std::env::args().collect();
-    let os = args.get(1).unwrap_or(&blank);
-    let release = args.get(2).unwrap_or(&blank);
-    let edition = args.get(3).unwrap_or(&blank);
-   (os.to_lowercase(), release.to_string(), edition.to_string())
+fn get_args() -> (String, String, String, DownloadType, String) {
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let mut download_type = DownloadType::None;
+    let mut osinfo = Vec::new();
+    let mut arch = std::env::consts::ARCH.to_string();
+
+    while let Some(arg) = args.get(0) {
+        match arg.as_str() {
+            "-h" | "--help" => usage(0),
+            "--test-iso-url" | "-t" => download_type = DownloadType::Test,
+            "--show-iso-url" | "-s" => download_type = DownloadType::Show,
+            "--download-iso" | "-d" => download_type = DownloadType::Normal("".into()),
+            "--open-distro-homepage" | "-o" => download_type = DownloadType::Homepage,
+            "--arch" | "-a" => {
+                if args.len() > 1 {
+                    arch = args.remove(1).to_string();
+                } else {
+                    eprintln!("ERROR: No architecture specified.");
+                    usage(1);
+                }
+            },
+            _ => osinfo.push(arg.to_string()),
+        }
+        args.remove(0);
+    };
+
+    if osinfo.len() > 3 {
+        eprintln!("ERROR! Too many arguments.");
+        usage(1);
+    } else if osinfo.len() > 0 {
+        if let DownloadType::None = download_type {
+            let vm_path = osinfo.iter().map(|s| s.to_owned() + "-").collect::<String>();
+            download_type = DownloadType::Normal(format!("{}/", vm_path[0..vm_path.len()-1].to_string()));
+        }
+    }
+
+    for _ in osinfo.len()..3 {
+        osinfo.push("".into());
+    }
+
+    (osinfo[0].clone(), osinfo[1].clone(), osinfo[2].clone(), download_type, arch.into())
+}
+
+enum DownloadType {
+    None,
+    Normal(String),
+    Test,
+    Show,
+    Homepage,
+}
+
+fn usage(status: i32) {
+    std::process::exit(status);
 }
 
 fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: String, distro: Distro, release: &str, edition: &str, arch: &str) {
+    println!("Downloading images to {}", vm_path);
     for (url, headers, iso) in url_iso_list {
-        let path = vm_path.clone() + "/" +  iso.as_str();
+        let path = vm_path.clone() + iso.as_str();
         let download = std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
