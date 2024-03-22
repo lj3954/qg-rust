@@ -63,7 +63,11 @@ impl Distro {
         };
 
         match url {
-            URL::Format(url_string) => vec![(url_string.as_str().format(release, edition, arch), HeaderMap::new(), iso_format(url_string))],
+            URL::Format(url_string) => {
+                let url_string = url_string.as_str().format(release, edition, arch);
+                let iso = iso_format(&url_string);
+                vec![(url_string, HeaderMap::new(), iso)]
+            },
             URL::Function(get_url) => {
                 match get_url(release, edition, arch) {
                     Ok(urls) => urls.iter()

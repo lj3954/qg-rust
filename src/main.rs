@@ -143,5 +143,5 @@ fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: Stri
 
 fn friendly_urls(url_iso_list: Vec<(String, HeaderMap, String)>) {
     println!("{}", url_iso_list.iter().map(|(url, ..)| url.to_string()).collect::<Vec<_>>().join("\n"));
-    std::process::exit(1);
+    std::process::exit(0);
 }
