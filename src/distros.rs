@@ -96,5 +96,13 @@ fn get_windows_url(release: &str, edition: &str, arch: &str) -> Result<Vec<Strin
         return Err(Box::new(std::io::Error::new(ErrorKind::Other, "Microsoft blocked the automated download request based on your IP address.")));
     }
 
-    Ok(vec![download_link_html.split("&quot;").last().unwrap().into()])
+    let starting = download_link_html.rfind("https://software.download.prss.microsoft.com").expect("Unable toparse download link.");
+    let ending = download_link_html.find(r#""><span class="product-download-type">IsoX64</span:"#).unwrap_or(download_link_html.len());
+    let link = download_link_html[starting..ending].into();
+    let drivers = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso".into();
+    let unattended1 = "https://www.spice-space.org/download/windows/spice-webdavd/spice-webdavd-x64-latest.msi".into();
+    let unattended2 = "https://www.spice-space.org/download/windows/vdagent/vdagent-win-0.10.0/spice-vdagent-x64-0.10.0.msi".into();
+    let unattended3 = "https://www.spice-space.org/download/windows/usbdk/UsbDk_1.0.22_x64.msi".into();
+
+    Ok(vec![link, drivers, unattended1, unattended2, unattended3])
 }

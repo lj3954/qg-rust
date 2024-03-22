@@ -15,22 +15,23 @@ fn main() {
 
     println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
 
-    let url_iso_list = distro.get_url_iso(&release, &edition, "amd64");
 
     match download_type {
         DownloadType::Normal(vm_path) => {
+            let url_iso_list = distro.get_url_iso(&release, &edition, &arch);
             if vm_path.len() > 0 {
                 std::fs::create_dir(&vm_path).unwrap_or(());
             }
             spawn_downloads(url_iso_list, vm_path, distro, &release, &edition, &arch)
         },
         DownloadType::Test => {
+            let url_iso_list = distro.get_url_iso(&release, &edition, &arch);
             println!("PLACEHOLDER");
             std::process::exit(1);
         },
         DownloadType::Show => {
-            println!("PLACEHOLDER");
-            std::process::exit(1);
+            let url_iso_list = distro.get_url_iso(&release, &edition, &arch);
+            friendly_urls(url_iso_list);
         },
         DownloadType::Homepage => {
             println!("PLACEHOLDER");
@@ -84,7 +85,9 @@ fn get_args() -> (String, String, String, DownloadType, String) {
         osinfo.push("".into());
     }
 
-    (osinfo[0].clone(), osinfo[1].clone(), osinfo[2].clone(), download_type, arch.into())
+    println!("{:?}", osinfo);
+
+    (osinfo[0].to_lowercase(), osinfo[1].clone(), osinfo[2].clone(), download_type, arch.into())
 }
 
 enum DownloadType {
@@ -136,4 +139,9 @@ fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: Stri
             }
         }
     }
+}
+
+fn friendly_urls(url_iso_list: Vec<(String, HeaderMap, String)>) {
+    println!("{}", url_iso_list.iter().map(|(url, ..)| url.to_string()).collect::<Vec<_>>().join("\n"));
+    std::process::exit(1);
 }

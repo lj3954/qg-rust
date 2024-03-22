@@ -54,9 +54,9 @@ impl Distro {
         };
 
         match url {
-            URL::Format(URLString) => vec![(URLString.as_str().format(release, edition, arch), HeaderMap::new(), iso_format(URLString))],
-            URL::Function(GetURL) => {
-                match GetURL(release, edition, arch) {
+            URL::Format(url_string) => vec![(url_string.as_str().format(release, edition, arch), HeaderMap::new(), iso_format(url_string))],
+            URL::Function(get_url) => {
+                match get_url(release, edition, arch) {
                     Ok(urls) => urls.iter()
                         .map(|url| (url.to_string(), HeaderMap::new(), iso_format(url)))
                         .collect(),
@@ -66,8 +66,8 @@ impl Distro {
                     },
                 }
             },
-            URL::PlusHeaders(GetInfo) => {
-                match GetInfo(release, edition, arch) {
+            URL::PlusHeaders(get_info) => {
+                match get_info(release, edition, arch) {
                     Ok(urls) => urls.iter()
                         .map(|(url, header)| (url.to_string(), header.clone(), iso_format(url)))
                         .collect(),
@@ -179,7 +179,11 @@ impl Validation for Vec<Distro> {
         for (rel, editions) in &data {
             if rel == release {
                 if !editions.contains(&edition.to_string()) {
-                    eprintln!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release);
+                    if edition.is_empty() {
+                        eprintln!("ERROR! You must specify an edition.");
+                    } else {
+                        eprintln!("ERROR! {} is not a supported {} {} edition", edition, pretty_name, release);
+                    }
                     println!(" - Editions: {}", editions.join(" "));
                     std::process::exit(1);
                 } else {
@@ -213,19 +217,19 @@ impl Validation for Vec<Distro> {
 pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
     let hash = match checksum.len() {
         32 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find MD5sum for file {}", filepath))?;
             hex::encode(Md5::digest(bytes))
         },
         40 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA1sum for file {}", filepath))?;
             hex::encode(Sha1::digest(bytes))
         },
         64 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA256sum for file {}", filepath))?;
             hex::encode(Sha256::digest(bytes))
         },
         128 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find hash for file {}", filepath))?;
+            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA512sum for file {}", filepath))?;
             hex::encode(Sha512::digest(bytes))
         },
         _ => return Err(format!("Can't guess hash algorithm, not checking {} hash.", filepath)),
