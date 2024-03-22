@@ -16,6 +16,8 @@ pub struct Distro {
     pub release_edition: ReleaseEdition,
     pub arch: String,
     pub checksum_function: Checksum,
+    pub homepage: String,
+    pub config: Config,
 }
 
 #[derive(Debug, Clone)]
@@ -40,9 +42,16 @@ pub enum ReleaseEdition {
     OnlineUnique(fn() -> Result<Vec<(String, Vec<String>)>, Box<dyn Error>>),
 }
 
+#[derive(Debug, Clone)]
+pub enum Config {
+    None,
+    Addition(fn(&str, &str, &str) -> String),
+    Overwrite(fn(&str, &str, &str) -> String),
+}
+
 impl Distro {
     pub fn get_url_iso(&self, release: &str, edition: &str, arch: &str) -> Vec<(String, HeaderMap, String)> {
-        let image_types = vec![".iso", ".img", ".dmg", ".chunklist", ".xz", ".raw", ".zip", ".tar", ".gz"];
+        let image_types = vec![".iso", ".img", ".dmg", ".chunklist", ".xz", ".raw", ".zip", ".tar", ".gz", ".msi"];
 
         let Distro { url, name, .. } = self;
         let iso_format = |url: &str| {
