@@ -1,11 +1,5 @@
 use std::error::Error;
-use std::fs;
-use sha1::Sha1;
-use sha2::{Sha256, Sha512, Digest};
-use md5::Md5;
 use reqwest::header::HeaderMap;
-use reqwest::Client;
-use indicatif::{ProgressBar, ProgressStyle};
 
 
 #[derive(Debug, Clone)]
@@ -45,8 +39,8 @@ pub enum ReleaseEdition {
 #[derive(Debug, Clone)]
 pub enum Config {
     None,
-    Addition(fn(&str, &str, &str) -> String),
-    Overwrite(fn(&str, &str, &str) -> String),
+    Addition(fn(Vec<String>, &str, &str, &str) -> String),
+    Overwrite(fn(Vec<String>, &str, &str, &str) -> Result<String, Box<dyn Error>>),
 }
 
 impl Distro {
@@ -92,9 +86,9 @@ impl Distro {
             },
         }
     }
-    pub fn has_checksum(&self) -> bool {
+    pub fn has_checksum(&self, index: usize) -> bool {
         match self.checksum_function {
-            Checksum::Normal(_) => true,
+            Checksum::Normal(_) if index == 0 => true,
             _ => false,
         }
     }
@@ -227,29 +221,6 @@ impl Validation for Vec<Distro> {
     }
 }
 
-pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
-    let hash = match checksum.len() {
-        32 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find MD5sum for file {}", filepath))?;
-            hex::encode(Md5::digest(bytes))
-        },
-        40 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA1sum for file {}", filepath))?;
-            hex::encode(Sha1::digest(bytes))
-        },
-        64 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA256sum for file {}", filepath))?;
-            hex::encode(Sha256::digest(bytes))
-        },
-        128 => {
-            let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find SHA512sum for file {}", filepath))?;
-            hex::encode(Sha512::digest(bytes))
-        },
-        _ => return Err(format!("Can't guess hash algorithm, not checking {} hash.", filepath)),
-    };
-    Ok(hash == checksum)
-}
-
 pub trait FormatUrl {
     fn format(&self, release: &str, edition: &str, arch: &str) -> String;
 }
@@ -275,26 +246,4 @@ pub fn cut_space(s: &str, n: usize) -> String {
     "".to_string()
 }
 
-pub async fn handle_download(url: String, vm_path: String, headermap: HeaderMap) -> Result<String, std::io::Error> {
-    let client = Client::new();
-    let path = std::env::current_dir()?.join(vm_path.clone());
-
-    let request = client.get(url).headers(headermap).send().await
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Unable to send request"))?;
-    let file_size = request.content_length().unwrap_or(0);
-
-    let progress = ProgressBar::new(file_size);
-    progress.set_style(ProgressStyle::with_template("[{elapsed}] {bar:40} {eta_precise} {decimal_bytes}/{decimal_total_bytes}  -   {decimal_bytes_per_sec}")
-        .unwrap().progress_chars("##-"));
-
-    let mut stream = request.bytes_stream();
-    let mut file = tokio::fs::File::create(&path).await.expect("Unable to create file");
-
-    while let Some(Ok(chunk)) = futures::StreamExt::next(&mut stream).await {
-        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
-        progress.inc(chunk.len() as u64);
-    }
-    progress.finish();
-    Ok(vm_path)
-}
 
