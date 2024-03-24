@@ -18,7 +18,7 @@ pub struct Distro {
 pub enum Checksum {
     None,
     Normal(fn(&str, &str, &str) -> Option<String>),
-    Manual(fn(String, &str, &str, &str) -> bool),
+    Manual(fn(&Vec<String>, &str, &str, &str) -> bool),
 }
 
 #[derive(Debug, Clone)]
@@ -100,9 +100,9 @@ impl Distro {
         }
     }
 
-    pub fn verify_after(&self, path: String, release: &str, edition: &str, arch: &str) -> Option<bool> {
+    pub fn verify_after(&self, paths: &Vec<String>, release: &str, edition: &str, arch: &str) -> Option<bool> {
         match self.checksum_function {
-            Checksum::Manual(verify) => Some(verify(path, release, edition, arch)),
+            Checksum::Manual(verify) => Some(verify(paths, release, edition, arch)),
             _ => None,
         }
     }

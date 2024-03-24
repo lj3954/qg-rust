@@ -11,6 +11,7 @@ fn main() {
     let distros = distros::distros();
     let (os, release, edition, download_type, arch) = get_args();
     let distro = distros.validate_parameters(&os, &release, &edition, &arch);
+    let arch = &distro.arch;
 
     println!("{:?}", distro);
 
