@@ -25,6 +25,14 @@ fn main() {
             if vm_path.len() > 0 {
                 std::fs::create_dir(&vm_path).unwrap_or(());
                 let paths = spawn_downloads(url_iso_list, &vm_path, &distro, &release, &edition, &arch);
+                match distro.verify_after(&paths, &release, &edition, &arch) {
+                    Some(true) => println!("Successfully verified {} image.", distro.pretty_name),
+                    Some(false) => {
+                        eprintln!("ERROR: Failed to verify {} image.", distro.pretty_name);
+                        std::process::exit(1);
+                    },
+                    None => (),
+                };
                 match create_config(&vm_path, paths, &distro, &release, &edition) {
                     Ok(config) => println!("\nTo start your {} virtual machine, run\n    quickemu --vm {}\n",
                                            distro.pretty_name, config),

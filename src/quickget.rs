@@ -103,6 +103,15 @@ pub fn create_config(vm_path: &str, paths: Vec<String>, distro: &Distro, release
     let config_path = vm_path.replace("/", ".conf");
     let path = std::path::Path::new(&config_path);
 
+    let quickemu_path = if let Ok(system_path) = std::env::var("PATH") {
+        match system_path.split(':').find(|path| std::path::Path::new(path).join("quickemu").exists()) {
+            Some(path) => "#!".to_string() + path + "/quickemu --vm\n".into(),
+            _ => "".into()
+        }
+    } else {
+        "".into()
+    };
+
     let default_config = |distro: &Distro| {
         let (os, imagetype) = match distro.name.as_str() {
             "batocera" => ("batocera", "img"),
@@ -121,20 +130,11 @@ pub fn create_config(vm_path: &str, paths: Vec<String>, distro: &Distro, release
             _ => ("linux", "iso"),
         };
 
-        let quickemu_path = if let Ok(system_path) = std::env::var("PATH") {
-            match system_path.split(':').find(|path| std::path::Path::new(path).join("quickemu").exists()) {
-                Some(path) => Some("#!".to_string() + path + "/quickemu --vm\n"),
-                _ => None
-            }
-        } else {
-            None
-        };
 
         format!(r#"{}guest_os="{}"
 disk_img="{}disk.qcow2"
 {}="{}"
-"#,
-            quickemu_path.unwrap_or("".into()), os, vm_path, imagetype, &paths[0])
+"#, quickemu_path, os, vm_path, imagetype, &paths[0])
         };
 
 
@@ -142,7 +142,7 @@ disk_img="{}disk.qcow2"
     match distro.config {
         Config::Overwrite(get_config) => {
             let config = get_config(paths, release, edition, &distro.arch)?;
-            fs::write(&path, config)?;
+            fs::write(&path, quickemu_path + &config)?;
         },
         Config::Addition(get_addition) => {
             let default = default_config(&distro);

@@ -90,94 +90,66 @@ pub fn macos_config(_: Vec<String>, release: &str, _: &str, _: &str) -> String {
     format!("macos_release={}{}", release, if release == "monterey" { "\ncpu_cores=2" } else { "" })
 }
 
-pub fn verify_chunklist(_: &Vec<String>, _: &str, _: &str, _: &str) -> bool {
-    todo!()
-}
-// WIP image verification below.
+pub fn verify_chunklist(paths: &Vec<String>, _: &str, _: &str, _: &str) -> bool {
+    let mut chunklist = File::open(&paths[1]).unwrap();
+    let mut buf = vec![0; 36];
+    chunklist.read_exact(&mut buf).unwrap();
 
-//pub fn verify_chunklist(paths: &Vec<String>, _: &str, _: &str, _: &str) -> bool {
-//    let mut dmg = File::open(&paths[0]).unwrap();
-//    for chunk in parse_chunklist(paths[1]) {
-//        dmg.seek(SeekFrom::Current(chunk.chunk_size as i64)).unwrap();
-//        let mut buf = vec![0; chunk.chunk_size as usize];
-//        dmg.read_exact(&mut buf).unwrap();
-//        let hash = Sha256::digest(&<Vec<u8> as TryInto<[u8; usize]>>::try_into(buf).unwrap());
-//        if hash.as_slice() != chunk.chunk_sha256 {
-//            return false;
-//        }
-//    }
-//    true
-//}
-//
-//const EFI_KEY: &str = "0xC3E748CAD9CD384329E10E25A91E43E1A762FF529ADE578C935BDDF9B13F2179D4855E6FC89E9E29CA12517D17DFA1EDCE0BEBF0EA7B461FFE61D94E2BDF72C196F89ACD3536B644064014DAE25A15DB6BB0852ECBD120916318D1CCDEA3C84C92ED743FC176D0BACA920D3FCF3158AFF731F88CE0623182A8ED67E650515F75745909F07D415F55FC15A35654D118C55A462D37A3ACDA08612F3F3F6571761EFCCBCC299AEE99B3A4FD6212CCFFF5EF37A2C334E871191F7E1C31960E010A54E86FA3F62E6D6905E1CD57732410A3EB0C6B4DEFDABE9F59BF1618758C751CD56CEF851D1C0EAA1C558E37AC108DA9089863D20E2E7E4BF475EC66FE6B3EFDCF";
-//const CHUNKLIST_MAGIC: u32 = 0x4C4B4E43;
-//const CHUNKLIST_FILE_VERSION_10: u8 = 1;
-//const CHUNKLIST_CHUNK_METHOD_10: u8 = 1;
-//const CHUNKLIST_SIGNATURE_METHOD_10: u8 = 1;
-//const SHA256_DIGEST_LEN: u32 = 32;
-//
-//
-//struct ChunklistHdr {
-//    cl_magic: u32,
-//    cl_header_size: u32,
-//    cl_file_ver: u8,
-//    cl_chunk_method: u8,
-//    cl_sig_method: u8,
-//    _unused: u8,
-//    cl_chunk_count: u64,
-//    cl_chunk_offset: u64,
-//    cl_sig_offset: u64,
-//}
-//
-//struct ChunklistChunk {
-//    chunk_size: u32,
-//    chunk_sha256: [u8; 32],
-//}
-//
-//fn parse_chunklist(path: String) -> Vec<ChunklistChunk> {
-//    let mut file = File::open(path).unwrap();
-//    let mut hash = Sha256::new();
-//
-//    let chunklist_size = std::mem::size_of::<ChunklistHdr>();
-//    assert!(chunklist_size == 0x24);
-//
-//    file.seek(SeekFrom::Start(chunklist_size as u64)).unwrap();
-//
-//    let mut buf = vec![0; chunklist_size];
-//    file.read_exact(&mut buf);
-//
-//    let header = ChunklistHdr {
-//        cl_magic: u32::from_le_bytes(buf[0..4].try_into().unwrap()),
-//        cl_header_size: u32::from_le_bytes(buf[4..8].try_into().unwrap()),
-//        cl_file_ver: buf[8],
-//        cl_chunk_method: buf[9],
-//        cl_sig_method: buf[10],
-//        _unused: buf[11],
-//        cl_chunk_count: u64::from_le_bytes(buf[12..20].try_into().unwrap()),
-//        cl_chunk_offset: u64::from_le_bytes(buf[20..28].try_into().unwrap()),
-//        cl_sig_offset: u64::from_le_bytes(buf[28..36].try_into().unwrap()),
-//    };
-//
-//    assert_eq!(header.cl_magic, CHUNKLIST_MAGIC);
-//    assert_eq!(header.cl_file_ver, CHUNKLIST_FILE_VERSION_10);
-//    assert_eq!(header.cl_chunk_method, CHUNKLIST_CHUNK_METHOD_10);
-//    assert_eq!(header.cl_sig_method, CHUNKLIST_SIGNATURE_METHOD_10);
-//    assert!(header.cl_sig_method == 0 || header.cl_sig_method == 1);
-//    assert!(header.cl_chunk_count > 0);
-//    assert!(header.cl_chunk_offset == 0x24);
-//    assert_eq!(header.cl_sig_offset, header.cl_chunk_offset + header.cl_chunk_count * 0x24);
-//
-//    let chunks: Vec<ChunklistChunk> = (0..header.cl_chunk_count).map(|_| {
-//        let mut buf = vec![0; 0x24];
-//        file.seek(SeekFrom::Current(0x24)).unwrap();
-//        file.read_exact(&mut buf);
-//        hash.update(&buf);
-//        ChunklistChunk {
-//            chunk_size: u32::from_le_bytes(buf[0..4].try_into().unwrap()),
-//            chunk_sha256: hash.clone().finalize().into(),
-//        }
-//    }).collect();
-//
-//    chunks
-//}
-//
+    let header = ChunklistHdr {
+        cl_magic: u32::from_le_bytes(buf[0..4].try_into().unwrap()),
+        _cl_header_size: u32::from_le_bytes(buf[4..8].try_into().unwrap()),
+        cl_file_ver: buf[8],
+        cl_chunk_method: buf[9],
+        cl_sig_method: buf[10],
+        _unused: buf[11],
+        cl_chunk_count: u64::from_le_bytes(buf[12..20].try_into().unwrap()),
+        cl_chunk_offset: u64::from_le_bytes(buf[20..28].try_into().unwrap()),
+        _cl_sig_offset: u64::from_le_bytes(buf[28..36].try_into().unwrap()),
+    };
+
+    if header.cl_magic != CHUNKLIST_MAGIC || header.cl_file_ver != CHUNKLIST_FILE_VERSION_10 || header.cl_sig_method != CHUNKLIST_SIGNATURE_METHOD_10 || header.cl_chunk_method != CHUNKLIST_CHUNK_METHOD_10 {
+        return false;
+    }
+
+    chunklist.seek(SeekFrom::Start(header.cl_chunk_offset)).unwrap();
+
+    let mut dmg = File::open(&paths[0]).unwrap();
+    (0..header.cl_chunk_count).all(|_| {
+        let mut buf = [0; 0x24];
+        chunklist.read_exact(&mut buf).unwrap();
+        let chunk = ChunklistChunk {
+            chunk_size: u32::from_le_bytes(buf[0..4].try_into().unwrap()),
+            chunk_sha256: buf[4..36].try_into().unwrap(),
+        };
+        
+        let mut data = vec![0; chunk.chunk_size as usize];
+        dmg.read_exact(&mut data).unwrap();
+
+        let digest = Sha256::digest(&data);
+        digest[0..SHA256_DIGEST_LEN as usize] == chunk.chunk_sha256[0..SHA256_DIGEST_LEN as usize]
+    })
+}
+
+const CHUNKLIST_MAGIC: u32 = 0x4C4B4E43;
+const CHUNKLIST_FILE_VERSION_10: u8 = 1;
+const CHUNKLIST_CHUNK_METHOD_10: u8 = 1;
+const CHUNKLIST_SIGNATURE_METHOD_10: u8 = 1;
+const SHA256_DIGEST_LEN: u32 = 32;
+
+#[derive(Debug)]
+struct ChunklistHdr {
+    cl_magic: u32,
+    _cl_header_size: u32,
+    cl_file_ver: u8,
+    cl_chunk_method: u8,
+    cl_sig_method: u8,
+    _unused: u8,
+    cl_chunk_count: u64,
+    cl_chunk_offset: u64,
+    _cl_sig_offset: u64,
+}
+#[derive(Debug)]
+struct ChunklistChunk {
+    chunk_size: u32,
+    chunk_sha256: [u8; 32],
+}
