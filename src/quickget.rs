@@ -44,10 +44,7 @@ pub fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: 
             })
         });
         let checksum = match distro.has_checksum(paths.len()) {
-            true => distro.get_checksum(release, edition, arch).unwrap_or_else(|| {
-                eprintln!("ERROR: Unable to get checksum. The image will be unable to be verified.");
-                "".to_string()
-            }),
+            true => distro.get_checksum(release, edition, arch).unwrap_or("".to_string()),
             _ => "".to_string(),
         };
 

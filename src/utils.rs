@@ -17,7 +17,7 @@ pub struct Distro {
 #[derive(Debug, Clone)]
 pub enum Checksum {
     None,
-    Normal(fn(&str, &str, &str) -> Option<String>),
+    Normal(fn(&str, &str, &str) -> Result<String, Box<dyn Error>>),
     Manual(fn(&Vec<String>, &str, &str, &str) -> bool),
 }
 
@@ -95,7 +95,13 @@ impl Distro {
 
     pub fn get_checksum(&self, release: &str, edition: &str, arch: &str) -> Option<String> {
         match self.checksum_function {
-            Checksum::Normal(get_hash) => get_hash(release, edition, arch),
+            Checksum::Normal(get_hash) => match get_hash(release, edition, arch) {
+                Ok(hash) => Some(hash),
+                Err(e) => {
+                    eprintln!("\nUnable to get checksum: {}.\nQuickget will be unable to verify the integrity of the download\n.", e);
+                        None
+                },
+            },
             _ => None,
         }
     }

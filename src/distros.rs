@@ -51,7 +51,7 @@ use std::io::ErrorKind;
 // Checksum types:
     // "Checksum::None": No checksum is used.
     // "Checksum::Normal(function)": A function takes in the release, edition, and architecture and
-    // returns the checksum of the first file downloaded (usually the ISO).
+    // returns the checksum of the first file downloaded (usually the ISO), or an error.
 //
 // arch: The architecture of the OS. Use standard names like "x86_64" or "aarch64".
 //
@@ -83,12 +83,8 @@ pub fn distros() -> Vec<Distro> {
 // cut_space: Cuts to the nth word in a string, starting at 0.
 // .format: Formats a string slice with the release, edition, and architecture
 
-fn kdeneon_hash(release: &str, edition: &str, arch: &str) -> Option<String> {
-    match collect_page("https:files.kde.org/neon/images/{RELEASE}/current/neon-{RELEASE}-current.sha256sum".format(release, edition, arch)) {
-        Ok(body) if body.len() > 0 => {
-            let checksum = cut_space(&body, 1);
-            Some(checksum)
-        },
-        _ => None,
-    }
+fn kdeneon_hash(release: &str, edition: &str, arch: &str) -> Result<String, Box<dyn Error>> {
+    let body = collect_page("https:files.kde.org/neon/images/{RELEASE}/current/neon-{RELEASE}-current.sha256sum".format(release, edition, arch))?;
+    let checksum = cut_space(&body, 1);
+    Ok(checksum)
 }
