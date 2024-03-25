@@ -115,22 +115,22 @@ impl Distro {
 }
 
 pub trait Validation {
-    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> Distro;
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> &Distro;
     fn list_oses(&self) -> String;
     fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String;
 }
 
 impl Validation for Vec<Distro> {
-    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> Distro {
+    fn validate_parameters(&self, os: &str, release: &str, edition: &str, arch: &str) -> &Distro {
         if os.len() == 0 {
             eprintln!("ERROR! You must specify an operating system.");
             println!(" - Operating systems: {}", self.list_oses());
             std::process::exit(1);
         }
 
-        let distros:Vec<Distro> = match self.iter().all(|distro| distro.name == os && distro.arch == arch) {
-                true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).cloned().collect(),
-                false => self.iter().filter(|distro| distro.name == os).cloned().collect(),
+        let distros: Vec<&Distro> = match self.iter().all(|distro| distro.name == os && distro.arch == arch) {
+                true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).collect(),
+                false => self.iter().filter(|distro| distro.name == os).collect(),
         };
         
         if distros.len() == 0 {
@@ -146,20 +146,20 @@ impl Validation for Vec<Distro> {
             match &distro.release_edition {
                 ReleaseEdition::Basic(releases, editions) => {
                     if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
-                        return distro.clone();
+                        return distro;
                     }
                     data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
                 },
                 ReleaseEdition::Unique(releases) => {
                     if releases.iter().any(|(rel, editions)| rel == release && { editions.len() == 0 || editions.contains(&edition.to_string()) }) {
-                        return distro.clone();
+                        return distro;
                     }
                     data.append(&mut releases.clone());
                 },
                 ReleaseEdition::OnlineBasic(get_releases) => match get_releases() {
                     Ok((releases, editions)) => {
                         if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
-                            return distro.clone();
+                            return distro;
                         }
                         data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
                     },
@@ -171,7 +171,7 @@ impl Validation for Vec<Distro> {
                 ReleaseEdition::OnlineUnique(get_info) => match get_info() {
                     Ok(releases) => {
                         if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
-                            return distro.clone();
+                            return distro;
                         }
                         data.append(&mut releases.clone());
                     },

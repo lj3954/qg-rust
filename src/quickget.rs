@@ -56,11 +56,9 @@ pub fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: 
             },
         };
 
-        paths.push(path.clone());
-
         if checksum.len() > 0 {
             println!("Verifying image with checksum {}", &checksum);
-            match verify_image(path, checksum) {
+            match verify_image(&path, checksum) {
                 Ok(true) => println!("Successfully verified image."),
                 Ok(false) => {
                     eprintln!("ERROR! Image verification failed.");
@@ -69,11 +67,12 @@ pub fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: 
                 Err(e) => eprintln!("WARNING! {}", e),
             }
         }
+        paths.push(path);
     }
     paths
 }
 
-pub fn verify_image(filepath: String, checksum: String) -> Result<bool, String> {
+pub fn verify_image(filepath: &str, checksum: String) -> Result<bool, String> {
     let hash = match checksum.len() {
         32 => {
             let bytes = fs::read(&filepath).map_err(|_| format!("Unable to find MD5sum for file {}", filepath))?;
