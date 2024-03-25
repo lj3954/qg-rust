@@ -134,7 +134,8 @@ pub fn create_config(vm_path: &str, paths: Vec<String>, distro: &Distro, release
         format!(r#"{}guest_os="{}"
 disk_img="{}disk.qcow2"
 {}="{}"
-"#, quickemu_path, os, vm_path, imagetype, &paths[0])
+arch="{}"
+"#, quickemu_path, os, vm_path, imagetype, &paths[0], &distro.arch)
         };
 
 

@@ -10,9 +10,6 @@ It is very much **WIP**. The majority of features are not implemented, and there
 
 Downloads, checksum verification, and config file creation are all implemented. 
 
-Comments will be added throughout the file distros are added in, in order to make implementation of new OSes easier,
-hopefully including for people from the original quickemu project who may not understand any Rust. 
-
 ## Compatibility
 
 This program by itself is capable of being compiled and run on nearly any system. However, the VMs it creates rely on Quickemu to be of any use, which is only available for Unix-like systems such as GNU/Linux.
