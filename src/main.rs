@@ -3,13 +3,18 @@ mod distros;
 mod quickget;
 
 use reqwest::header::HeaderMap;
-use utils::{Distro, Validation};
+use utils::{Distro, Validation, List};
 use quickget::{spawn_downloads, create_config};
 
 
 fn main() {
     let distros = distros::distros();
     let (os, release, edition, download_type, arch) = get_args();
+
+    if let DownloadType::List(json) = download_type {
+        distros.list(json);
+    }
+
     let distro = distros.validate_parameters(&os, &release, &edition, &arch);
     let arch = &distro.arch;
 
@@ -84,6 +89,8 @@ fn get_args() -> (String, String, String, DownloadType, String) {
                     usage(1);
                 }
             },
+            "list" | "list_csv" => download_type = DownloadType::List(false),
+            "list_json" => download_type = DownloadType::List(true),
             _ => osinfo.push(arg.to_string()),
         }
         args.remove(0);
@@ -114,6 +121,7 @@ enum DownloadType {
     Test,
     Show,
     Homepage,
+    List(bool),
 }
 
 fn usage(status: i32) {

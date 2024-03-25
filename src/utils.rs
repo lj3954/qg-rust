@@ -221,6 +221,113 @@ impl Validation for Vec<Distro> {
     }
 }
 
+pub trait List {
+    fn list(&self, is_json: bool);
+}
+
+impl List for Vec<Distro> {
+    fn list(&self, is_json: bool) {
+        let print_info = |is_first: &mut bool, pretty_name: &str, name: &str, release: &str, edition: &str, arch: &str, png: &str, svg: &str| {
+            if is_json {
+                // Handle first value to ensure JSON format is accurate.
+                let separator = if *is_first {
+                    *is_first = false;
+                    "\n"
+                } else {
+                    ",\n"
+                };
+                print!(r#"{}  {{
+    "Display Name": "{}",
+    "OS": "{}",
+    "Release": "{}",
+    "Option": "{}",
+    "Arch": "{}",
+    "PNG": "{}",
+    "SVG": "{}"
+  }}"#, separator, pretty_name, name, release, edition, arch, png, svg);
+            } else {
+                println!("{},{},{},{},{},{},{}", pretty_name, name, release, edition, arch, png, svg);
+            }
+        };
+
+
+        // Since the downloader is included in the project, replace downloader with architecture.
+        if is_json {
+            print!("[");
+        } else {
+            println!("Display Name,OS,Release,Option,Arch,PNG,SVG");
+        }
+
+        let mut is_first = true;
+        self.iter().for_each(|distro| {
+            let png = "https://quickemu-project.github.io/quickemu-icons/png/{OS}/{OS}-quickemu-white-pinkbg.png".replace("{OS}", &distro.name);
+            let svg = "https://quickemu-project.github.io/quickemu-icons/svg/{OS}/{OS}-quickemu-white-pinkbg.svg".replace("{OS}", &distro.name);
+            match &distro.release_edition {
+                ReleaseEdition::Basic(releases, editions) => releases.iter().for_each(|release| {
+                    if editions.is_empty() {
+                        print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
+                    } else {
+                        editions.iter().for_each(|edition| {
+                            print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
+                        });
+                    }
+                }),
+                        
+                ReleaseEdition::Unique(releases) => {
+                    releases.iter().for_each(|(release, editions)| {
+                        if editions.is_empty() {
+                            print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
+                        } else {
+                            editions.iter().for_each(|edition| {
+                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
+                            });
+                        }
+                    });
+                },
+                ReleaseEdition::OnlineBasic(get_releases) => match get_releases() {
+                    Ok((releases, editions)) => {
+                        releases.iter().for_each(|release| {
+                            if editions.is_empty() {
+                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
+                            } else {
+                                editions.iter().for_each(|edition| {
+                                    print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
+                                });
+                            }
+                        });
+                    },
+                    Err(e) => {
+                        eprintln!("Unable to get releases for {}: {}", distro.name, e);
+                        std::process::exit(1);
+                    },
+                },
+                ReleaseEdition::OnlineUnique(get_info) => match get_info() {
+                    Ok(releases) => {
+                        releases.iter().for_each(|(release, editions)| {
+                            if editions.is_empty() {
+                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
+                            } else {
+                                editions.iter().for_each(|edition| {
+                                    print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
+                                });
+                            }
+                        });
+                    },
+                    Err(e) => {
+                        eprintln!("Unable to get releases for {}: {}", distro.name, e);
+                        std::process::exit(1);
+                    },
+                },
+            };
+        });
+
+        if is_json {
+            println!("\n]");
+        }
+        std::process::exit(0);
+    }
+}
+
 pub trait FormatUrl {
     fn format(&self, release: &str, edition: &str, arch: &str) -> String;
 }
