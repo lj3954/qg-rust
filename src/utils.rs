@@ -1,7 +1,8 @@
 use std::error::Error;
 use itertools::Itertools;
 use reqwest::header::HeaderMap;
-
+use std::cell::RefCell;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone)]
 pub struct Distro {
@@ -146,7 +147,7 @@ impl Validation for Vec<Distro> {
         for distro in distros {
             match &distro.release_edition {
                 ReleaseEdition::Basic(releases, editions) => {
-                    if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
+                    if releases.contains(&release.to_string()) && { editions.len() == 0 || editions.contains(&edition.to_string()) } {
                         return distro;
                     }
                     data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
@@ -159,7 +160,7 @@ impl Validation for Vec<Distro> {
                 },
                 ReleaseEdition::OnlineBasic(get_releases) => match get_releases(&distro.arch) {
                     Ok((releases, editions)) => {
-                        if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
+                        if releases.contains(&release.to_string()) && { editions.len() == 0 || editions.contains(&edition.to_string()) } {
                             return distro;
                         }
                         data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
@@ -171,7 +172,7 @@ impl Validation for Vec<Distro> {
                 },
                 ReleaseEdition::OnlineUnique(get_info) => match get_info(&distro.arch) {
                     Ok(releases) => {
-                        if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
+                        if releases.iter().any(|(rel, editions)| rel == release && { editions.len() == 0 || editions.contains(&edition.to_string()) }) {
                             return distro;
                         }
                         data.append(&mut releases.clone());
@@ -347,19 +348,18 @@ impl FormatUrl for &str {
     }
 }
 
-pub fn collect_page(url: String) -> Result<String, Box<dyn Error>> {
-    let body = reqwest::blocking::get(url)?.text()?;
-    Ok(body)
-}
+static CACHE_PAGES: Mutex<RefCell<Vec<(String, String)>>> = Mutex::new(RefCell::new(vec![]));
 
-pub fn cut_space(s: &str, n: usize) -> String {
-    let s = s.split_whitespace();
-    for (i, word) in s.enumerate() {
-        if i == n-1 {
-            return word.to_string();
+pub fn collect_page(url: String) -> Result<String, Box<dyn Error>> {
+    let binding = CACHE_PAGES.lock().unwrap();
+    let mut cache = binding.borrow_mut();
+    match cache.iter().find(|(website_url, _)| website_url.to_string() == url) {
+        Some((_, contents)) => Ok(contents.to_string()),
+        None => {
+            let body = reqwest::blocking::get(&url)?.text()?;
+            cache.push((url, body.clone()));
+            Ok(body)
         }
     }
-    "".to_string()
 }
-
 

@@ -1,9 +1,9 @@
 use crate::utils::collect_page;
 use std::error::Error;
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
 use itertools::Itertools;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct FedoraRelease {
     version: String,
     arch: String,
