@@ -1,4 +1,5 @@
 use std::error::Error;
+use itertools::Itertools;
 use reqwest::header::HeaderMap;
 
 
@@ -211,7 +212,9 @@ impl Validation for Vec<Distro> {
 
 
     fn list_oses(&self) -> String {
-        self.iter().map(|distro| distro.name.to_string()).collect::<Vec<String>>().join(" ")
+        self.iter().map(|distro| distro.name.to_string())
+            .sorted()
+            .dedup().collect::<Vec<String>>().join(" ")
     }
 
     fn list_releases(&self, releases: Vec<(String, Vec<String>)>) -> String {
