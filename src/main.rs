@@ -96,10 +96,7 @@ fn get_args() -> (String, String, String, DownloadType, String) {
         args.remove(0);
     };
 
-    if osinfo.len() > 3 {
-        eprintln!("ERROR! Too many arguments.");
-        usage(1);
-    } else if osinfo.len() > 0 {
+    if osinfo.len() > 0 {
         if let DownloadType::None = download_type {
             let vm_path = osinfo.iter().map(|s| s.replace(" ", "-") + "-").collect::<String>();
             download_type = DownloadType::Normal(format!("{}{}/", vm_path, arch));
@@ -112,7 +109,7 @@ fn get_args() -> (String, String, String, DownloadType, String) {
 
     println!("{:?}", osinfo);
 
-    (osinfo[0].to_lowercase(), osinfo[1].clone(), osinfo[2].clone(), download_type, arch.into())
+    (osinfo[0].to_lowercase(), osinfo[1].clone(), osinfo[2..].join(" "), download_type, arch.into())
 }
 
 enum DownloadType {
