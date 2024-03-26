@@ -32,8 +32,8 @@ pub enum URL {
 pub enum ReleaseEdition {
     Basic(Vec<String>, Vec<String>),
     Unique(Vec<(String, Vec<String>)>),
-    OnlineBasic(fn() -> Result<(Vec<String>, Vec<String>), Box<dyn Error>>),
-    OnlineUnique(fn() -> Result<Vec<(String, Vec<String>)>, Box<dyn Error>>),
+    OnlineBasic(fn(&str) -> Result<(Vec<String>, Vec<String>), Box<dyn Error>>),
+    OnlineUnique(fn(&str) -> Result<Vec<(String, Vec<String>)>, Box<dyn Error>>),
 }
 
 #[derive(Debug, Clone)]
@@ -128,7 +128,7 @@ impl Validation for Vec<Distro> {
             std::process::exit(1);
         }
 
-        let distros: Vec<&Distro> = match self.iter().all(|distro| distro.name == os && distro.arch == arch) {
+        let distros: Vec<&Distro> = match self.iter().any(|distro| distro.name == os && distro.arch == arch) {
                 true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).collect(),
                 false => self.iter().filter(|distro| distro.name == os).collect(),
         };
@@ -156,7 +156,7 @@ impl Validation for Vec<Distro> {
                     }
                     data.append(&mut releases.clone());
                 },
-                ReleaseEdition::OnlineBasic(get_releases) => match get_releases() {
+                ReleaseEdition::OnlineBasic(get_releases) => match get_releases(&distro.arch) {
                     Ok((releases, editions)) => {
                         if releases.contains(&release.to_string()) && editions.len() == 0 || editions.contains(&edition.to_string()) {
                             return distro;
@@ -168,7 +168,7 @@ impl Validation for Vec<Distro> {
                         std::process::exit(1);
                     },
                 },
-                ReleaseEdition::OnlineUnique(get_info) => match get_info() {
+                ReleaseEdition::OnlineUnique(get_info) => match get_info(&distro.arch) {
                     Ok(releases) => {
                         if releases.iter().any(|(rel, editions)| rel == release && editions.len() == 0 || editions.contains(&edition.to_string())) {
                             return distro;
@@ -290,7 +290,7 @@ impl List for Vec<Distro> {
                         }
                     });
                 },
-                ReleaseEdition::OnlineBasic(get_releases) => match get_releases() {
+                ReleaseEdition::OnlineBasic(get_releases) => match get_releases(&distro.arch) {
                     Ok((releases, editions)) => {
                         releases.iter().for_each(|release| {
                             if editions.is_empty() {
@@ -307,7 +307,7 @@ impl List for Vec<Distro> {
                         std::process::exit(1);
                     },
                 },
-                ReleaseEdition::OnlineUnique(get_info) => match get_info() {
+                ReleaseEdition::OnlineUnique(get_info) => match get_info(&distro.arch) {
                     Ok(releases) => {
                         releases.iter().for_each(|(release, editions)| {
                             if editions.is_empty() {

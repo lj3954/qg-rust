@@ -1,6 +1,7 @@
 mod add_distro;
 mod windows;
 mod macos;
+mod fedora;
 
 use crate::utils::{Distro, cut_space, collect_page, FormatUrl, Checksum, URL, ReleaseEdition, Config};
 use add_distro::{BasicDistros, AdvancedDistros};
@@ -67,6 +68,8 @@ pub fn distros() -> Vec<Distro> {
  
     distros.add_basic("https://neon.kde.org/", "kdeneon", "KDE Neon", vec!["user", "testing", "unstable", "developer"], vec![], "https:files.kde.org/neon/images/{RELEASE}/current/neon-{RELEASE}-current.iso", Checksum::Normal(kdeneon_hash), "x86_64", Config::None);
 
+    distros.add_advanced_unique_online("https://getfedora.org", "fedora", "Fedora", fedora::fedora_releases, fedora::get_fedora_urls, Checksum::Normal(fedora::fedora_checksum), "x86_64", Config::None);
+    distros.add_advanced_unique_online("https://getfedora.org", "fedora", "Fedora", fedora::fedora_releases, fedora::get_fedora_urls, Checksum::Normal(fedora::fedora_checksum), "aarch64", Config::None);
 
     distros.add_advanced_unique("https://www.microsoft.com/en-us/windows/", "windows", "Windows", vec![("8", vec!["Arabic", "Brazilian Portuguese", "Bulgarian", "Chinese (Simplified)", "Chinese (Traditional)", "Chinese (Traditional Hong Kong)", "Croatian", "Czech", "Danish", "Dutch", "English (United States)", "English International", "Estonian", "Finnish", "French", "German", "Greek", "Hebrew", "Hungarian", "Italian", "Japanese", "Latvian", "Lithuanian", "Norwegian", "Polish", "Portuguese", "Romanian", "Russian", "Serbian Latin", "Slovak", "Slovenian", "Spanish", "Swedish", "Thai", "Turkish", "Ukrainian"]), 
             ("10", vec!["Arabic", "Brazilian Portuguese", "Bulgarian", "Chinese (Simplified)", "Chinese (Traditional)", "Czech", "Danish", "Dutch", "English (United States)", "English International", "Estonian", "Finnish", "French", "French Canadian", "German", "Greek", "Hebrew", "Hungarian", "Italian", "Japanese", "Korean", "Latvian", "Lithuanian", "Norwegian", "Polish", "Portuguese", "Romanian", "Russian", "Serbian Latin", "Slovak", "Slovenian", "Spanish", "Spanish (Mexico)", "Swedish", "Thai", "Turkish", "Ukrainian"]),

@@ -16,6 +16,9 @@ md-5 = "0.10.6"
 hex = "0.4.3"
 rand = "0.8.5"
 uuid = { version = "1.8.0", features = ["v4", "fast-rng"] }
+serde_json = "1.0.114"
+serde = { version = "1.0.197", features = ["derive"] }
+itertools = "0.12.1"
 
 [profile.dev]
 opt-level = 3

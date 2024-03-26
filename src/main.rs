@@ -102,7 +102,7 @@ fn get_args() -> (String, String, String, DownloadType, String) {
     } else if osinfo.len() > 0 {
         if let DownloadType::None = download_type {
             let vm_path = osinfo.iter().map(|s| s.replace(" ", "-") + "-").collect::<String>();
-            download_type = DownloadType::Normal(format!("{}/", vm_path[0..vm_path.len()-1].to_string()));
+            download_type = DownloadType::Normal(format!("{}{}/", vm_path, arch));
         }
     }
 
