@@ -134,6 +134,12 @@ impl Validation for Vec<Distro> {
                 true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).collect(),
                 false => self.iter().filter(|distro| distro.name == os).collect(),
         };
+
+        if arch != std::env::consts::ARCH && !distros.iter().any(|distro| distro.arch == arch) {
+            eprintln!("Architecture {} not available for {}. Please use one of the available architectures, or don't specify an architecture to automatically select one.", arch, distros[0].pretty_name);
+            println!(" - Architectures: {}", distros.iter().map(|distro| &*distro.arch).dedup().collect::<Vec<_>>().join(" "));
+            std::process::exit(1);
+        }
         
         if distros.len() == 0 {
             eprintln!("ERROR! {} is not a supported OS.", os);

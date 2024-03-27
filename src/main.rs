@@ -18,16 +18,17 @@ fn main() {
     let distro = distros.validate_parameters(&os, &release, &edition, &arch);
     let arch = &distro.arch;
 
-    println!("{:?}", distro);
+    //println!("{:?}", distro);
 
 
-    println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
+    //println!("OS: {}, Release: {}, Edition: {}", os, release, edition);
 
 
     match download_type {
         DownloadType::Normal(vm_path) => {
             let url_iso_list = distro.get_url_iso(&release, &edition, &arch);
             if vm_path.len() > 0 {
+                let vm_path = format!("{}{}/", vm_path, distro.arch);
                 std::fs::create_dir(&vm_path).unwrap_or(());
                 let paths = spawn_downloads(url_iso_list, &vm_path, &distro, &release, &edition, &arch);
                 match distro.verify_after(&paths, &release, &edition, &arch) {
@@ -99,7 +100,7 @@ fn get_args() -> (String, String, String, DownloadType, String) {
     if osinfo.len() > 0 {
         if let DownloadType::None = download_type {
             let vm_path = osinfo.iter().map(|s| s.replace(" ", "-") + "-").collect::<String>();
-            download_type = DownloadType::Normal(format!("{}{}/", vm_path, arch));
+            download_type = DownloadType::Normal(vm_path);
         }
     }
 
@@ -107,7 +108,7 @@ fn get_args() -> (String, String, String, DownloadType, String) {
         osinfo.push("".into());
     }
 
-    println!("{:?}", osinfo);
+    //println!("{:?}", osinfo);
 
     (osinfo[0].to_lowercase(), osinfo[1].clone(), osinfo[2..].join(" "), download_type, arch.into())
 }

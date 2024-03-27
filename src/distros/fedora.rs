@@ -8,10 +8,8 @@ struct FedoraRelease {
     version: String,
     arch: String,
     link: String,
-    variant: String,
     subvariant: String,
     sha256: Option<String>,
-    size: Option<String>,
 }
 
 pub fn fedora_releases(arch: &str) -> Result<Vec<(String, Vec<String>)>, Box<dyn Error>> {
