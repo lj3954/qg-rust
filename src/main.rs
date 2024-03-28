@@ -4,7 +4,7 @@ mod quickget;
 
 use reqwest::header::HeaderMap;
 use utils::{Distro, Validation, List};
-use quickget::{spawn_downloads, create_config};
+use quickget::{spawn_downloads, create_config, test_urls};
 
 
 fn main() {
@@ -50,8 +50,8 @@ fn main() {
         },
         DownloadType::Test => {
             let url_iso_list = distro.get_url_iso(&release, &edition, &arch);
-            println!("PLACEHOLDER");
-            std::process::exit(1);
+            test_urls(url_iso_list);
+            std::process::exit(0);
         },
         DownloadType::Show => {
             let url_iso_list = distro.get_url_iso(&release, &edition, &arch);

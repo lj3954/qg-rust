@@ -72,6 +72,17 @@ pub fn spawn_downloads(url_iso_list: Vec<(String, HeaderMap, String)>, vm_path: 
     paths
 }
 
+pub fn test_urls(url_iso_list: Vec<(String, HeaderMap, String)>) {
+    url_iso_list.into_iter().for_each(|(url, headers, _)| {
+        let client = reqwest::blocking::Client::new();
+        let request = client.get(&url).headers(headers).send().unwrap_or_else(|e| {
+            eprintln!("Error while testing URL {}: {}", url, e);
+            std::process::exit(1);
+        });
+        println!("Got response from {}. File exists. Size: {:.2} MiB", url, request.content_length().unwrap_or(0) as f64 / 1_048_576.0);
+    })
+}
+
 pub fn verify_image(filepath: &str, checksum: String) -> Result<bool, String> {
     let hash = match checksum.len() {
         32 => {
