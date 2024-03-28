@@ -2,6 +2,8 @@ use std::error::Error;
 use itertools::Itertools;
 use reqwest::header::HeaderMap;
 use std::sync::Mutex;
+use rayon::prelude::*;
+use serde::Serialize;
 
 #[derive(Debug, Clone)]
 pub struct Distro {
@@ -239,109 +241,95 @@ impl Validation for Vec<Distro> {
     }
 }
 
+#[derive(Serialize)]
+struct DistroList<'a> {
+    #[serde(rename = "Display Name")]
+    display_name: &'a str,
+    #[serde(rename = "OS")]
+    os: &'a str,
+    #[serde(rename = "Release")]
+    release: String,
+    #[serde(rename = "Option")]
+    option: String,
+    #[serde(rename = "Architecture")]
+    arch: &'a str,
+    #[serde(rename = "PNG")]
+    png: String,
+    #[serde(rename = "SVG")]
+    svg: String,
+}
+
 pub trait List {
     fn list(&self, is_json: bool);
 }
 
 impl List for Vec<Distro> {
     fn list(&self, is_json: bool) {
-        let print_info = |is_first: &mut bool, pretty_name: &str, name: &str, release: &str, edition: &str, arch: &str, png: &str, svg: &str| {
-            if is_json {
-                // Handle first value to ensure JSON format is accurate.
-                let separator = if *is_first {
-                    *is_first = false;
-                    "\n"
-                } else {
-                    ",\n"
-                };
-                print!(r#"{}  {{
-    "Display Name": "{}",
-    "OS": "{}",
-    "Release": "{}",
-    "Option": "{}",
-    "Arch": "{}",
-    "PNG": "{}",
-    "SVG": "{}"
-  }}"#, separator, pretty_name, name, release, edition, arch, png, svg);
-            } else {
-                println!("{},{},{},{},{},{},{}", pretty_name, name, release, edition, arch, png, svg);
-            }
-        };
-
-
-        // Since the downloader is included in the project, replace downloader with architecture.
-        if is_json {
-            print!("[");
-        } else {
-            println!("Display Name,OS,Release,Option,Arch,PNG,SVG");
-        }
-
-        let mut is_first = true;
-        self.iter().for_each(|distro| {
+        let data = self.par_iter().map(|distro| {
             let png = "https://quickemu-project.github.io/quickemu-icons/png/{OS}/{OS}-quickemu-white-pinkbg.png".replace("{OS}", &distro.name);
             let svg = "https://quickemu-project.github.io/quickemu-icons/svg/{OS}/{OS}-quickemu-white-pinkbg.svg".replace("{OS}", &distro.name);
             match &distro.release_edition {
-                ReleaseEdition::Basic(releases, editions) => releases.iter().for_each(|release| {
+                ReleaseEdition::Basic(releases, editions) => releases.iter().map(|release| {
                     if editions.is_empty() {
-                        print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
+                        vec![DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: "".into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }]
                     } else {
-                        editions.iter().for_each(|edition| {
-                            print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
-                        });
+                        editions.iter().map(|edition| {
+                            DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: edition.into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }
+                        }).collect::<Vec<DistroList>>()
                     }
-                }),
+                }).flatten().collect::<Vec<DistroList>>(),
                         
-                ReleaseEdition::Unique(releases) => {
-                    releases.iter().for_each(|(release, editions)| {
-                        if editions.is_empty() {
-                            print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
-                        } else {
-                            editions.iter().for_each(|edition| {
-                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
-                            });
-                        }
-                    });
-                },
+                ReleaseEdition::Unique(releases) => releases.iter().map(|(release, editions)| {
+                    if editions.is_empty() {
+                        vec![DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: "".into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }]
+                    } else {
+                        editions.iter().map(|edition| {
+                            DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: edition.into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }
+                        }).collect::<Vec<DistroList>>()
+                    }
+                }).flatten().collect::<Vec<DistroList>>(),
                 ReleaseEdition::OnlineBasic(get_releases) => match get_releases(&distro.arch) {
-                    Ok((releases, editions)) => {
-                        releases.iter().for_each(|release| {
-                            if editions.is_empty() {
-                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
-                            } else {
-                                editions.iter().for_each(|edition| {
-                                    print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
-                                });
-                            }
-                        });
-                    },
+                    Ok((releases, editions)) => releases.iter().map(|release| {
+                        if editions.is_empty() {
+                            vec![DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: "".into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }]
+                        } else {
+                            editions.iter().map(|edition| {
+                                DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: edition.into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }
+                            }).collect::<Vec<DistroList>>()
+                        }
+                    }).flatten().collect::<Vec<DistroList>>(),
                     Err(e) => {
                         eprintln!("Unable to get releases for {}: {}", distro.name, e);
                         std::process::exit(1);
                     },
                 },
                 ReleaseEdition::OnlineUnique(get_info) => match get_info(&distro.arch) {
-                    Ok(releases) => {
-                        releases.iter().for_each(|(release, editions)| {
-                            if editions.is_empty() {
-                                print_info(&mut is_first, &distro.pretty_name, &distro.name, release, "", &distro.arch, &png, &svg);
-                            } else {
-                                editions.iter().for_each(|edition| {
-                                    print_info(&mut is_first, &distro.pretty_name, &distro.name, release, edition, &distro.arch, &png, &svg);
-                                });
-                            }
-                        });
-                    },
+                    Ok(releases) => releases.iter().map(|(release, editions)| {
+                        if editions.is_empty() {
+                            vec![DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: "".into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }]
+                        } else {
+                            editions.iter().map(|edition| {
+                                DistroList { display_name: &distro.pretty_name, os: &distro.name, release: release.into(), option: edition.into(), arch: &distro.arch, png: png.clone(), svg: svg.clone() }
+                            }).collect::<Vec<DistroList>>()
+                        }
+                    }).flatten().collect::<Vec<DistroList>>(),
                     Err(e) => {
                         eprintln!("Unable to get releases for {}: {}", distro.name, e);
                         std::process::exit(1);
                     },
                 },
-            };
-        });
+            }
+        }).flatten().collect::<Vec<DistroList>>();
 
         if is_json {
-            println!("\n]");
+            println!("{}", serde_json::to_string_pretty(&data).unwrap());
+        } else {
+            println!("Display Name,OS,Release,Option,Arch,PNG,SVG\n{}", data.iter().map(|distro| {
+                format!("{},{},{},{},{},{},{}", distro.display_name, distro.os, distro.release, distro.option, distro.arch, distro.png, distro.svg)
+            }).collect::<Vec<String>>().join("\n"));
         }
+
+
         std::process::exit(0);
     }
 }
