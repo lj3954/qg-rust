@@ -66,9 +66,11 @@ impl Distro {
             },
             URL::Function(get_url) => {
                 match get_url(release, edition, arch) {
-                    Ok(urls) => urls.iter()
-                        .map(|url| (url.to_string(), HeaderMap::new(), iso_format(url)))
-                        .collect(),
+                    Ok(urls) => urls.into_iter()
+                        .map(|url| {
+                            let iso = iso_format(&url);
+                            (url, HeaderMap::new(), iso)
+                        }).collect(),
                     Err(e) => {
                         eprintln!("Unable to get URLs: {}", e);
                         std::process::exit(1);
@@ -77,9 +79,11 @@ impl Distro {
             },
             URL::PlusHeaders(get_info) => {
                 match get_info(release, edition, arch) {
-                    Ok(urls) => urls.iter()
-                        .map(|(url, header)| (url.to_string(), header.clone(), iso_format(url)))
-                        .collect(),
+                    Ok(urls) => urls.into_iter()
+                        .map(|(url, header)| {
+                            let iso = iso_format(&url);
+                            (url, header, iso)
+                        }).collect(),
                     Err(e) => {
                         eprintln!("Unable to get URLs: {}", e);
                         std::process::exit(1);
@@ -134,18 +138,17 @@ impl Validation for Vec<Distro> {
                 true => self.iter().filter(|distro| distro.name == os && distro.arch == arch).collect(),
                 false => self.iter().filter(|distro| distro.name == os).collect(),
         };
-
-        if arch != std::env::consts::ARCH && !distros.iter().any(|distro| distro.arch == arch) {
-            eprintln!("Architecture {} not available for {}. Please use one of the available architectures, or don't specify an architecture to automatically select one.", arch, distros[0].pretty_name);
-            println!(" - Architectures: {}", distros.iter().map(|distro| &*distro.arch).dedup().collect::<Vec<_>>().join(" "));
-            std::process::exit(1);
-        }
-        
         if distros.len() == 0 {
             eprintln!("ERROR! {} is not a supported OS.", os);
             println!(" - Operating systems: {}", self.list_oses());
             std::process::exit(1);
         }
+        if arch != std::env::consts::ARCH && !distros.iter().any(|distro| distro.arch == arch) {
+            eprintln!("Architecture {} not available for {}. Please use one of the available architectures, or don't specify an architecture to automatically select one.", arch, distros[0].pretty_name);
+            println!(" - Architectures: {}", distros.iter().map(|distro| &*distro.arch).dedup().collect::<Vec<_>>().join(" "));
+            std::process::exit(1);
+        }
+
         let pretty_name = distros[0].pretty_name.clone();
 
         let mut data: Vec<(String, Vec<String>)> = Vec::new();
@@ -169,7 +172,7 @@ impl Validation for Vec<Distro> {
                         if releases.contains(&release.to_string()) && { editions.len() == 0 || editions.contains(&edition.to_string()) } {
                             return distro;
                         }
-                        data.append(&mut releases.iter().map(|release| (release.to_string(), editions.clone())).collect());
+                        data.append(&mut releases.into_iter().map(|release| (release, editions.clone())).collect());
                     },
                     Err(e) => {
                         eprintln!("Unable to get releases for {}: {}", distro.name, e);
@@ -177,11 +180,11 @@ impl Validation for Vec<Distro> {
                     },
                 },
                 ReleaseEdition::OnlineUnique(get_info) => match get_info(&distro.arch) {
-                    Ok(releases) => {
+                    Ok(mut releases) => {
                         if releases.iter().any(|(rel, editions)| rel == release && { editions.len() == 0 || editions.contains(&edition.to_string()) }) {
                             return distro;
                         }
-                        data.append(&mut releases.clone());
+                        data.append(&mut releases);
                     },
                     Err(e) => {
                         eprintln!("Unable to get releases for {}: {}", distro.name, e);
@@ -362,7 +365,11 @@ pub fn collect_page(url: String) -> Result<String, Box<dyn Error>> {
     match cache.iter().find(|(website_url, _)| website_url.to_string() == url) {
         Some((_, contents)) => Ok(contents.to_string()),
         None => {
-            let body = reqwest::blocking::get(&url)?.text()?;
+            let request = reqwest::blocking::get(&url)?;
+            if request.content_length().unwrap_or(u64::MAX) > 10_485_760 {
+                return Err("The 'collect_page' function is not intended to collect large files (>10MiB).".into());
+            }
+            let body = request.text()?;
             cache.push((url, body.clone()));
             Ok(body)
         }
