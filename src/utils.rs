@@ -1,7 +1,6 @@
 use std::error::Error;
 use itertools::Itertools;
 use reqwest::header::HeaderMap;
-use std::cell::RefCell;
 use std::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -357,11 +356,10 @@ impl FormatUrl for &str {
     }
 }
 
-static CACHE_PAGES: Mutex<RefCell<Vec<(String, String)>>> = Mutex::new(RefCell::new(vec![]));
+static CACHE_PAGES: Mutex<Vec<(String, String)>> = Mutex::new(vec![]);
 
 pub fn collect_page(url: String) -> Result<String, Box<dyn Error>> {
-    let binding = CACHE_PAGES.lock().unwrap();
-    let mut cache = binding.borrow_mut();
+    let mut cache = CACHE_PAGES.lock().unwrap();
     match cache.iter().find(|(website_url, _)| website_url.to_string() == url) {
         Some((_, contents)) => Ok(contents.to_string()),
         None => {

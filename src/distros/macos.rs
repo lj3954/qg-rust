@@ -15,7 +15,7 @@ const INFO_SIGN_LINK: &str = "CU";
 const INFO_SIGN_SESS: &str = "CT";
 
 
-pub fn get_urls(release: &str, edition: &str, arch: &str) -> Result<Vec<(String, HeaderMap)>, Box<dyn Error>> { 
+pub fn get_urls(release: &str, _: &str, _: &str) -> Result<Vec<(String, HeaderMap)>, Box<dyn Error>> { 
     let (board_id, mlb) = match release {
         "high-sierra" => ("Mac-BE088AF8C5EB4FA2", "00000000000J80300"),
         "mojave" => ("Mac-7BA5B2DFE22DDD8C", "00000000000KXPG00"),

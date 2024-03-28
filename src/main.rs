@@ -3,7 +3,7 @@ mod distros;
 mod quickget;
 
 use reqwest::header::HeaderMap;
-use utils::{Distro, Validation, List};
+use utils::{Validation, List};
 use quickget::{spawn_downloads, create_config, test_urls};
 
 

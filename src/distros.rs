@@ -7,7 +7,6 @@ mod ubuntu;
 use crate::utils::{Distro, collect_page, FormatUrl, Checksum, URL, ReleaseEdition, Config};
 use add_distro::{BasicDistros, AdvancedDistros};
 use std::error::Error;
-use std::io::ErrorKind;
 
 // List of functions used to add distros
 
